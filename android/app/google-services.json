@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "595367138806",
+    "project_id": "finace-app-d638b",
+    "storage_bucket": "finace-app-d638b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:595367138806:android:9779da4e8815ceb0d5a3d7",
+        "android_client_info": {
+          "package_name": "com.example.finance_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBmGdV7ZKk8PttuR-SRi6lH4xQ1kvJAXJA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
