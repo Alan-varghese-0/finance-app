@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
+  static const primary = Color(0xFF6366F1); // 🔥 nice modern indigo
+
   static const Color background = Color(0xFF0D0D0D);
   static const Color surface = Color(0xFF1A1A1A);
 
   static const Color income = Color(0xFF1DBF73);
   static const Color expense = Color(0xFFFF5A5F);
+  static const Color subscription = Color.fromARGB(255, 243, 103, 33);
 
   static const Color textPrimary = Color(0xFFEDEDED);
   static const Color textSecondary = Color(0xFF9E9E9E);
@@ -22,6 +25,7 @@ class AppTheme {
     colorScheme: const ColorScheme.dark(
       primary: AppColors.income,
       secondary: AppColors.expense,
+      onTertiary: AppColors.subscription,
       surface: AppColors.surface,
     ),
 

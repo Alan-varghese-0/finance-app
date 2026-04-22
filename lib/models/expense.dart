@@ -6,6 +6,7 @@ class Expense {
   final double amount;
   final DateTime date;
   final TransactionType type;
+  final String category; // ✅ ADD THIS
 
   Expense({
     required this.id,
@@ -13,6 +14,7 @@ class Expense {
     required this.amount,
     required this.date,
     required this.type,
+    required this.category, // ✅ ADD THIS
   });
 
   factory Expense.fromMap(String id, Map<String, dynamic> data) {
@@ -23,7 +25,9 @@ class Expense {
       date: data['date'] != null ? (data['date']).toDate() : DateTime.now(),
       type: data['type'] == 'income'
           ? TransactionType.income
-          : TransactionType.expense, // default expense
+          : TransactionType.expense,
+
+      category: data['category'] ?? "General", // ✅ ADD THIS
     );
   }
 
@@ -33,6 +37,7 @@ class Expense {
       'amount': amount,
       'date': date,
       'type': type == TransactionType.income ? 'income' : 'expense',
+      'category': category, // ✅ ADD THIS
     };
   }
 }
