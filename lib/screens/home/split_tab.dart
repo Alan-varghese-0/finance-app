@@ -34,7 +34,6 @@ class _SplitTabState extends State<SplitTab>
           color: AppColors.background,
           child: Column(
             children: [
-              /// 🔥 OVERVIEW
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: _splitOverview(splits),
@@ -59,7 +58,7 @@ class _SplitTabState extends State<SplitTab>
 
               const SizedBox(height: 10),
 
-              /// 📜 LIST
+              /// 📜 SPLITS LIST
               Expanded(
                 child: splits.isEmpty
                     ? Center(
@@ -72,7 +71,8 @@ class _SplitTabState extends State<SplitTab>
                         itemCount: splits.length,
                         itemBuilder: (ctx, i) {
                           final doc = splits[i];
-                          final data = doc.data() as Map<String, dynamic>;
+                          final data =
+                              doc.data() as Map<String, dynamic>? ?? {};
 
                           return _splitItem(
                             doc: doc,
@@ -90,12 +90,12 @@ class _SplitTabState extends State<SplitTab>
     );
   }
 
-  /// 🔥 OVERVIEW CARD
+  /// 🔥 OVERVIEW
   Widget _splitOverview(List<QueryDocumentSnapshot> splits) {
     double total = 0;
 
     for (var s in splits) {
-      final data = s.data() as Map<String, dynamic>;
+      final data = s.data() as Map<String, dynamic>? ?? {};
       total += (data['amount'] ?? 0);
     }
 
@@ -127,21 +127,28 @@ class _SplitTabState extends State<SplitTab>
     );
   }
 
-  /// 🔥 SPLIT ITEM (WITH OWE LOGIC)
+  /// 🔥 SPLIT ITEM (SAFE + OWE LOGIC)
   Widget _splitItem({
     required QueryDocumentSnapshot doc,
     required Map<String, dynamic> data,
     required VoidCallback onDelete,
   }) {
-    final peopleCount = data['people']?.length ?? 0;
-    final List owes = data['owe'] ?? [];
+    final people = (data['people'] ?? []) as List;
+    final owes = (data['owe'] ?? []) as List;
 
-    /// 💥 OWE TEXT
+    final peopleCount = people.length;
+
+    /// 💥 SAFE OWE TEXT
     String oweText = "";
+
     if (owes.isNotEmpty) {
       oweText = owes
-          .map((e) => "${e['from']} → ${e['to']} ₹${e['amount']}")
+          .map(
+            (e) => "${e['from'] ?? ''} → ${e['to'] ?? ''} ₹${e['amount'] ?? 0}",
+          )
           .join(", ");
+    } else {
+      oweText = "No breakdown";
     }
 
     return Dismissible(
@@ -171,7 +178,6 @@ class _SplitTabState extends State<SplitTab>
             builder: (_) => SplitDetailsSheet(data: doc),
           ),
 
-          /// ICON
           leading: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
@@ -181,21 +187,18 @@ class _SplitTabState extends State<SplitTab>
             child: const Icon(Icons.group, color: AppColors.expense),
           ),
 
-          /// TITLE
           title: Text(
             data['title'] ?? '',
             style: const TextStyle(color: AppColors.textPrimary),
           ),
 
-          /// 🔥 OWE + PEOPLE
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (oweText.isNotEmpty)
-                Text(
-                  oweText,
-                  style: const TextStyle(color: Colors.orange, fontSize: 13),
-                ),
+              Text(
+                oweText,
+                style: const TextStyle(color: Colors.orange, fontSize: 13),
+              ),
               const SizedBox(height: 4),
               Text(
                 "$peopleCount people",
@@ -207,9 +210,8 @@ class _SplitTabState extends State<SplitTab>
             ],
           ),
 
-          /// AMOUNT
           trailing: Text(
-            "₹${data['amount']}",
+            "₹${data['amount'] ?? 0}",
             style: const TextStyle(
               color: AppColors.expense,
               fontWeight: FontWeight.bold,
@@ -220,7 +222,7 @@ class _SplitTabState extends State<SplitTab>
     );
   }
 
-  /// ➕ ADD PERSON DIALOG
+  /// ➕ ADD PERSON
   void _showAddPersonDialog() {
     final controller = TextEditingController();
 
