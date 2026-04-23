@@ -1,9 +1,10 @@
+import 'package:finance_app/data/categories.dart';
+import 'package:finance_app/models/category.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import '../theme/theme.dart';
-import '../data/categories.dart';
-import '../models/category.dart';
+
+import 'package:finance_app/theme/theme.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   final String? id;

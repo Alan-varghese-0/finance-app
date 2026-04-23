@@ -1,9 +1,7 @@
-// ignore_for_file: unused_local_variable
-
-import 'package:finance_app/screens/add_expense_screen.dart';
-import 'package:finance_app/screens/add_split_screen.dart';
 import 'package:finance_app/screens/home/expenses_tab.dart';
 import 'package:finance_app/screens/home/split_tab.dart';
+import 'package:finance_app/screens/insert%20pages/add_expense_screen.dart';
+import 'package:finance_app/screens/insert%20pages/add_split_screen.dart';
 import 'package:finance_app/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
