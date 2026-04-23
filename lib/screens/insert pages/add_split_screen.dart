@@ -19,11 +19,15 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
   final splitCollection = FirebaseFirestore.instance.collection('splits');
 
   Map<String, bool> selectedPeople = {};
-  Map<String, TextEditingController> customAmounts = {};
+
+  /// 🔥 UPDATED CONTROLLERS
+  Map<String, TextEditingController> shareControllers = {};
+  Map<String, TextEditingController> paidControllers = {};
+
   Set<String> paidBy = {};
   bool isEqualSplit = true;
 
-  /// 💾 SAVE WITH OWE LOGIC
+  /// 💾 SAVE SPLIT
   void saveSplit() async {
     final title = titleController.text;
     final totalAmount = double.tryParse(amountController.text) ?? 0;
@@ -36,7 +40,7 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
     if (title.isEmpty ||
         totalAmount == 0 ||
         selected.isEmpty ||
-        paidBy.isEmpty) {
+        (isEqualSplit && paidBy.isEmpty)) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Fill all fields")));
@@ -44,62 +48,86 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
     }
 
     List<Map<String, dynamic>> peopleData = [];
-    Map<String, double> owes = {};
-
-    // Calculate total paid by all payers
-    final payers = paidBy.toList();
-    double payerShare = totalAmount / payers.length;
 
     /// ✅ EQUAL SPLIT
     if (isEqualSplit) {
+      final payers = paidBy.toList();
+      double payerAmount = totalAmount / payers.length;
       double each = totalAmount / selected.length;
 
       for (var name in selected) {
-        peopleData.add({"name": name, "amount": each});
+        double paid = paidBy.contains(name) ? payerAmount : 0;
 
-        if (!paidBy.contains(name)) {
-          owes[name] = each;
-        }
+        peopleData.add({"name": name, "share": each, "paid": paid});
       }
     }
     /// ✅ CUSTOM SPLIT
     else {
-      double sum = 0;
+      double totalShare = 0;
+      double totalPaid = 0;
 
       for (var name in selected) {
-        double amt = double.tryParse(customAmounts[name]?.text ?? "0") ?? 0;
+        double share =
+            double.tryParse(shareControllers[name]?.text ?? "0") ?? 0;
+        double paid = double.tryParse(paidControllers[name]?.text ?? "0") ?? 0;
 
-        sum += amt;
+        totalShare += share;
+        totalPaid += paid;
 
-        peopleData.add({"name": name, "amount": amt});
-
-        if (!paidBy.contains(name)) {
-          owes[name] = amt;
-        }
+        peopleData.add({"name": name, "share": share, "paid": paid});
       }
 
-      if (sum != totalAmount) {
+      if ((totalShare - totalAmount).abs() > 0.01 ||
+          (totalPaid - totalAmount).abs() > 0.01) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Amounts must match total")),
+          const SnackBar(content: Text("Total paid & share must equal total")),
         );
         return;
       }
     }
 
-    /// 🔥 FORMAT OWE LIST
-    List<Map<String, dynamic>> oweList = [];
-    for (var oweEntry in owes.entries) {
-      // Split what each person owes among all payers
-      double splitAmount = oweEntry.value / payers.length;
-      for (var payer in payers) {
-        oweList.add({"from": oweEntry.key, "to": payer, "amount": splitAmount});
+    /// 🔥 BALANCE CALCULATION
+    List<Map<String, dynamic>> creditors = [];
+    List<Map<String, dynamic>> debtors = [];
+
+    for (var p in peopleData) {
+      double balance = (p['paid'] as double) - (p['share'] as double);
+
+      if (balance > 0) {
+        creditors.add({"name": p['name'], "balance": balance});
+      } else if (balance < 0) {
+        debtors.add({"name": p['name'], "balance": -balance});
       }
+    }
+
+    /// 🔥 SMART SETTLEMENT
+    List<Map<String, dynamic>> oweList = [];
+
+    int i = 0, j = 0;
+
+    while (i < debtors.length && j < creditors.length) {
+      double debt = debtors[i]['balance'];
+      double credit = creditors[j]['balance'];
+
+      double amt = debt < credit ? debt : credit;
+
+      oweList.add({
+        "from": debtors[i]['name'],
+        "to": creditors[j]['name'],
+        "amount": amt.round(),
+      });
+
+      debtors[i]['balance'] -= amt;
+      creditors[j]['balance'] -= amt;
+
+      if (debtors[i]['balance'] == 0) i++;
+      if (creditors[j]['balance'] == 0) j++;
     }
 
     await splitCollection.add({
       "title": title,
       "amount": totalAmount,
-      "paidBy": payers,
+      "paidBy": paidBy.toList(),
       "people": peopleData,
       "owe": oweList,
       "createdAt": Timestamp.now(),
@@ -123,7 +151,7 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            /// SECTION: SPLIT DETAILS
+            /// 🔹 SPLIT DETAILS
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
@@ -169,7 +197,7 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
 
             const SizedBox(height: 22),
 
-            /// SECTION: SPLIT TYPE
+            /// 🔹 SPLIT TYPE
             Card(
               elevation: 1,
               shape: RoundedRectangleBorder(
@@ -241,7 +269,7 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
 
             const SizedBox(height: 22),
 
-            /// SECTION: PEOPLE & PAID BY
+            /// 🔹 PEOPLE SECTION
             Card(
               elevation: 1,
               shape: RoundedRectangleBorder(
@@ -259,15 +287,18 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
                       return const Center(child: CircularProgressIndicator());
                     }
 
-                    final docs = snapshot.data!.docs;
-                    final people = docs
+                    final people = snapshot.data!.docs
                         .map((e) => e['name'] as String)
                         .toList();
 
-                    // INIT DEFAULT
+                    /// INIT
                     for (var name in people) {
                       selectedPeople.putIfAbsent(name, () => false);
-                      customAmounts.putIfAbsent(
+                      shareControllers.putIfAbsent(
+                        name,
+                        () => TextEditingController(),
+                      );
+                      paidControllers.putIfAbsent(
                         name,
                         () => TextEditingController(),
                       );
@@ -278,12 +309,10 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
                       children: [
                         const Text(
                           "Paid by",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 10),
+
                         Wrap(
                           spacing: 10,
                           runSpacing: 8,
@@ -314,54 +343,41 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
                               ),
                               onSelected: (val) {
                                 setState(() {
-                                  if (val) {
-                                    paidBy.add(name);
-                                  } else {
-                                    paidBy.remove(name);
-                                  }
+                                  val ? paidBy.add(name) : paidBy.remove(name);
                                 });
                               },
                             );
                           }).toList(),
                         ),
+
                         const SizedBox(height: 20),
                         const Divider(),
                         const SizedBox(height: 10),
+
                         const Text(
                           "Split between",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 10),
+
                         Wrap(
                           spacing: 8,
                           runSpacing: 4,
                           children: people.map((name) {
                             return FilterChip(
-                              label: Text(name),
+                              label: Text(
+                                name,
+                                style: TextStyle(
+                                  color: selectedPeople[name] == true
+                                      ? AppColors.primary
+                                      : AppColors.textPrimary,
+                                ),
+                              ),
                               selected: selectedPeople[name] ?? false,
                               selectedColor: AppColors.primary.withOpacity(
                                 0.15,
                               ),
                               backgroundColor: AppColors.surface,
-                              labelStyle: TextStyle(
-                                color: selectedPeople[name] == true
-                                    ? AppColors.primary
-                                    : AppColors.textPrimary,
-                                fontWeight: selectedPeople[name] == true
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              side: BorderSide(
-                                color: selectedPeople[name] == true
-                                    ? AppColors.primary
-                                    : AppColors.border,
-                              ),
                               onSelected: (val) {
                                 setState(() {
                                   selectedPeople[name] = val;
@@ -370,27 +386,90 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
                             );
                           }).toList(),
                         ),
-                        const SizedBox(height: 10),
+
+                        const SizedBox(height: 12),
+
+                        /// 🔥 NEW ROW UI (STYLED)
                         if (!isEqualSplit)
                           Column(
                             children: people
-                                .where((name) => selectedPeople[name] == true)
+                                .where((n) => selectedPeople[n] == true)
                                 .map((name) {
-                                  return Padding(
-                                    padding: const EdgeInsets.symmetric(
+                                  return Container(
+                                    margin: const EdgeInsets.symmetric(
                                       vertical: 6,
-                                      horizontal: 8,
                                     ),
-                                    child: TextField(
-                                      controller: customAmounts[name],
-                                      keyboardType: TextInputType.number,
-                                      decoration: InputDecoration(
-                                        labelText: "Amount for $name",
-                                        prefixIcon: const Icon(Icons.person),
-                                        border: OutlineInputBorder(),
-                                        helperText:
-                                            "Enter custom amount for $name",
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.surface,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: AppColors.border,
                                       ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primary
+                                                .withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            name,
+                                            style: TextStyle(
+                                              color: AppColors.primary,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: TextField(
+                                            style: TextStyle(
+                                              color: AppColors.textPrimary,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            controller: shareControllers[name],
+                                            keyboardType: TextInputType.number,
+                                            decoration: InputDecoration(
+                                              labelText: "Share",
+                                              prefixText: "₹ ",
+                                              isDense: true,
+                                              border: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: TextField(
+                                            style: TextStyle(
+                                              color: AppColors.textPrimary,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            controller: paidControllers[name],
+                                            keyboardType: TextInputType.number,
+                                            decoration: InputDecoration(
+                                              labelText: "Paid",
+                                              prefixText: "₹ ",
+                                              isDense: true,
+                                              border: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   );
                                 })
@@ -403,9 +482,8 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
               ),
             ),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 30),
 
-            /// SAVE BUTTON
             SizedBox(
               width: double.infinity,
               height: 52,
@@ -420,14 +498,12 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  elevation: 2,
                 ),
                 onPressed: saveSplit,
                 icon: const Icon(Icons.save),
                 label: const Text("Save Split"),
               ),
             ),
-            const SizedBox(height: 10),
           ],
         ),
       ),

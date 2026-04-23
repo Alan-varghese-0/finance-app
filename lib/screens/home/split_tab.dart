@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:finance_app/screens/people_show_page.dart';
 import 'package:finance_app/widgets/split_details_screens.dart';
 import 'package:flutter/material.dart';
 import 'package:finance_app/theme/theme.dart';
@@ -46,12 +47,29 @@ class _SplitTabState extends State<SplitTab>
                   alignment: Alignment.centerLeft,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.surface,
+                      foregroundColor: AppColors.textPrimary,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: BorderSide(color: AppColors.border),
+                      ),
                     ),
-                    onPressed: _showAddPersonDialog,
-                    icon: const Icon(Icons.person_add),
-                    label: const Text("Add People"),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PeoplePage()),
+                      );
+                    },
+                    icon: const Icon(Icons.group),
+                    label: const Text(
+                      "View People",
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ),
               ),
