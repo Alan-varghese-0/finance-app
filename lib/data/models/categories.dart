@@ -1,5 +1,5 @@
+import 'package:finance_app/features/expenses/models/category.dart';
 import 'package:flutter/material.dart';
-import '../models/category.dart';
 
 final List<CategoryModel> categories = [
   /// 🔴 EXPENSE CATEGORIES

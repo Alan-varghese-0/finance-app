@@ -1,7 +1,7 @@
-import 'package:finance_app/screens/home/expenses_tab.dart';
-import 'package:finance_app/screens/home/split_tab.dart';
-import 'package:finance_app/screens/insert%20pages/add_expense_screen.dart';
-import 'package:finance_app/screens/insert%20pages/add_split_screen.dart';
+import 'package:finance_app/features/expenses/screens/add_expense_screen.dart';
+import 'package:finance_app/features/expenses/screens/expenses_tab.dart';
+import 'package:finance_app/features/split/screens/split_tab.dart';
+import 'package:finance_app/features/split/screens/add_split_screen.dart';
 import 'package:finance_app/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -22,9 +22,8 @@ class _HomeScreenState extends State<HomeScreen>
     'subscriptions',
   );
 
-  final splitCollection = FirebaseFirestore.instance.collection(
-    'splits',
-  ); // ✅ NEW
+  final splitCollection = FirebaseFirestore.instance.collection('splits');
+  final goalsCollection = FirebaseFirestore.instance.collection('goals');
 
   @override
   void initState() {
@@ -70,6 +69,7 @@ class _HomeScreenState extends State<HomeScreen>
           ExpenseTab(
             expenseCollection: expenseCollection,
             subscriptionCollection: subscriptionCollection,
+            goalsCollection: goalsCollection,
           ),
 
           /// ✅ SPLIT TAB (FIXED)

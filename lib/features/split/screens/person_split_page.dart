@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import '../theme/theme.dart';
+import '../../../theme/theme.dart';
 
 class PersonSplitPage extends StatelessWidget {
   final String personName;

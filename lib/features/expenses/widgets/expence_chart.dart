@@ -1,7 +1,7 @@
+import 'package:finance_app/data/models/categories.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../models/expense.dart';
-import '../data/categories.dart';
 import '../models/category.dart';
 
 class ExpenseChart extends StatelessWidget {

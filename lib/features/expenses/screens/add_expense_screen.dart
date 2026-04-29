@@ -1,5 +1,5 @@
-import 'package:finance_app/data/categories.dart';
-import 'package:finance_app/models/category.dart';
+import 'package:finance_app/data/models/categories.dart';
+import 'package:finance_app/features/expenses/models/category.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';

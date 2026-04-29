@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import '../theme/theme.dart';
+import '../../../theme/theme.dart';
 
 class SplitDetailsSheet extends StatelessWidget {
   final QueryDocumentSnapshot data;
@@ -86,6 +86,7 @@ class SplitDetailsSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final people = (data['people'] ?? []) as List;
 
+    // ignore: unused_local_variable
     final balances = calculateBalances(people);
     final settlements = calculateSmartSplit(people);
     final summary = getUserSummary(settlements);

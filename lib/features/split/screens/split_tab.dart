@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:finance_app/screens/people_show_page.dart';
-import 'package:finance_app/widgets/split_details_screens.dart';
+import 'package:finance_app/features/split/screens/people_show_page.dart';
+import 'package:finance_app/features/split/widget/split_details_screens.dart';
 import 'package:flutter/material.dart';
 import 'package:finance_app/theme/theme.dart';
 
@@ -241,6 +241,7 @@ class _SplitTabState extends State<SplitTab>
   }
 
   /// ➕ ADD PERSON
+  // ignore: unused_element
   void _showAddPersonDialog() {
     final controller = TextEditingController();
 

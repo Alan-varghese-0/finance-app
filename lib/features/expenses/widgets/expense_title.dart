@@ -1,7 +1,7 @@
+import 'package:finance_app/data/models/categories.dart';
+import 'package:finance_app/theme/theme.dart';
 import 'package:flutter/material.dart';
 import '../models/expense.dart';
-import '../theme/theme.dart';
-import '../data/categories.dart';
 import '../models/category.dart';
 
 class ExpenseTile extends StatelessWidget {
