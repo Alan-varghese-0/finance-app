@@ -1,7 +1,7 @@
 import 'package:finance_app/features/expenses/screens/add_expense_screen.dart';
 import 'package:finance_app/features/expenses/screens/expenses_tab.dart';
-import 'package:finance_app/features/split/screens/split_tab.dart';
 import 'package:finance_app/features/split/screens/add_split_screen.dart';
+import 'package:finance_app/features/split/screens/split_tab.dart';
 import 'package:finance_app/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -13,6 +13,28 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+/// 🔥 KEEP ALIVE WRAPPER (prevents tab rebuild)
+class KeepAliveWrapper extends StatefulWidget {
+  final Widget child;
+
+  const KeepAliveWrapper({super.key, required this.child});
+
+  @override
+  State<KeepAliveWrapper> createState() => _KeepAliveWrapperState();
+}
+
+class _KeepAliveWrapperState extends State<KeepAliveWrapper>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}
+
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
@@ -21,7 +43,6 @@ class _HomeScreenState extends State<HomeScreen>
   final subscriptionCollection = FirebaseFirestore.instance.collection(
     'subscriptions',
   );
-
   final splitCollection = FirebaseFirestore.instance.collection('splits');
   final goalsCollection = FirebaseFirestore.instance.collection('goals');
 
@@ -29,11 +50,8 @@ class _HomeScreenState extends State<HomeScreen>
   void initState() {
     super.initState();
 
+    /// 🔥 NO setState listener here
     _tabController = TabController(length: 2, vsync: this);
-
-    _tabController.addListener(() {
-      setState(() {});
-    });
   }
 
   @override
@@ -47,61 +65,86 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+
+      /// 🔥 APP BAR
       appBar: AppBar(
         title: const Text(
           "Expense Tracker",
           style: TextStyle(color: AppColors.textPrimary),
         ),
         backgroundColor: AppColors.background,
+
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.textPrimary,
+          indicatorColor: AppColors.primary,
           tabs: const [
             Tab(text: "Expenses"),
-            Tab(text: "Splits"), // ✅ Correct now
+            Tab(text: "Splits"),
           ],
         ),
       ),
 
+      /// 🔥 BODY (NO REBUILD NOW)
       body: TabBarView(
         controller: _tabController,
         children: [
-          ExpenseTab(
-            expenseCollection: expenseCollection,
-            subscriptionCollection: subscriptionCollection,
-            goalsCollection: goalsCollection,
+          PrimaryScrollController(
+            controller: ScrollController(),
+            child: KeepAliveWrapper(
+              child: ExpenseTab(
+                expenseCollection: expenseCollection,
+                subscriptionCollection: subscriptionCollection,
+                goalsCollection: goalsCollection,
+              ),
+            ),
           ),
-
-          /// ✅ SPLIT TAB (FIXED)
-          SplitTab(splitCollection: splitCollection),
+          PrimaryScrollController(
+            controller: ScrollController(),
+            child: KeepAliveWrapper(
+              child: SplitTab(splitCollection: splitCollection),
+            ),
+          ),
         ],
       ),
 
-      /// FAB
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          if (_tabController.index == 0) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const AddExpenseScreen()),
-            );
-          } else {
-            /// ✅ ADD SPLIT
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const AddSplitScreen()),
-            );
-          }
+      /// 🔥 FAB (SMART + SMOOTH)
+      floatingActionButton: AnimatedBuilder(
+        animation: _tabController,
+        builder: (context, _) {
+          final isExpenseTab = _tabController.index == 0;
+
+          return FloatingActionButton(
+            backgroundColor: isExpenseTab
+                ? AppColors.income
+                : AppColors.primary,
+
+            onPressed: () {
+              if (isExpenseTab) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AddExpenseScreen()),
+                );
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AddSplitScreen()),
+                );
+              }
+            },
+
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              transitionBuilder: (child, animation) {
+                return ScaleTransition(scale: animation, child: child);
+              },
+              child: Icon(
+                isExpenseTab ? Icons.add : Icons.group,
+                key: ValueKey(isExpenseTab),
+              ),
+            ),
+          );
         },
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          child: Icon(
-            _tabController.index == 0
-                ? Icons.add
-                : Icons.group, // ✅ better icon
-            key: ValueKey(_tabController.index),
-          ),
-        ),
       ),
     );
   }

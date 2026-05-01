@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:finance_app/features/expenses/widgets/expence_chart.dart';
 
 import 'package:finance_app/features/home/AllTransactionspage.dart';
 import 'package:finance_app/theme/theme.dart';
@@ -6,7 +7,6 @@ import 'package:finance_app/features/subscribtion/widget/nearest_subscribtionpag
 import 'package:finance_app/features/goal/widget/priorityGoal.dart';
 import 'package:flutter/material.dart';
 import '../models/expense.dart';
-import '../widgets/expence_chart.dart';
 import '../widgets/expense_title.dart';
 
 class ExpenseTab extends StatefulWidget {
