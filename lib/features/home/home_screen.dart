@@ -1,10 +1,11 @@
+import 'package:finance_app/data/firestore_user.dart';
 import 'package:finance_app/features/expenses/screens/add_expense_screen.dart';
 import 'package:finance_app/features/expenses/screens/expenses_tab.dart';
 import 'package:finance_app/features/split/screens/add_split_screen.dart';
 import 'package:finance_app/features/split/screens/split_tab.dart';
 import 'package:finance_app/theme/theme.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -39,13 +40,6 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  final expenseCollection = FirebaseFirestore.instance.collection('expenses');
-  final subscriptionCollection = FirebaseFirestore.instance.collection(
-    'subscriptions',
-  );
-  final splitCollection = FirebaseFirestore.instance.collection('splits');
-  final goalsCollection = FirebaseFirestore.instance.collection('goals');
-
   @override
   void initState() {
     super.initState();
@@ -63,6 +57,19 @@ class _HomeScreenState extends State<HomeScreen>
   /// ================= UI =================
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final fs = UserFirestore(uid);
+    final expenseCollection = fs.expenses;
+    final subscriptionCollection = fs.subscriptions;
+    final splitCollection = fs.splits;
+    final goalsCollection = fs.goals;
+
     return Scaffold(
       backgroundColor: AppColors.background,
 

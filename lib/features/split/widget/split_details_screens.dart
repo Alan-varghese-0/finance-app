@@ -4,11 +4,18 @@ import '../../../theme/theme.dart';
 
 class SplitDetailsSheet extends StatelessWidget {
   final QueryDocumentSnapshot data;
+  final String selfName;
 
-  const SplitDetailsSheet({super.key, required this.data});
+  const SplitDetailsSheet({
+    super.key,
+    required this.data,
+    required this.selfName,
+  });
 
-  /// 🔥 CHANGE THIS LATER (auth user)
-  final String currentUser = "alan";
+  String _label(String? name) {
+    if (name == null || name.isEmpty) return '';
+    return name == selfName ? 'You' : name;
+  }
 
   /// 🔥 BALANCE
   List<Map<String, dynamic>> calculateBalances(List people) {
@@ -72,9 +79,9 @@ class SplitDetailsSheet extends StatelessWidget {
     double get = 0;
 
     for (var s in settlements) {
-      if (s['from'] == currentUser) {
+      if (s['from'] == selfName) {
         owe += s['amount'];
-      } else if (s['to'] == currentUser) {
+      } else if (s['to'] == selfName) {
         get += s['amount'];
       }
     }
@@ -144,7 +151,10 @@ class SplitDetailsSheet extends StatelessWidget {
                       return ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.person),
-                        title: Text(p['name']),
+                        title: Text(
+                          _label(p['name']?.toString()),
+                          style: TextStyle(color: AppColors.textPrimary),
+                        ),
                         subtitle: Text(
                           "Share: ₹${p['share']} | Paid: ₹${p['paid']}",
                         ),
@@ -166,8 +176,7 @@ class SplitDetailsSheet extends StatelessWidget {
                       : Column(
                           children: settlements.map((s) {
                             bool isMe =
-                                s['from'] == currentUser ||
-                                s['to'] == currentUser;
+                                s['from'] == selfName || s['to'] == selfName;
 
                             return Container(
                               margin: const EdgeInsets.symmetric(vertical: 6),
@@ -189,7 +198,7 @@ class SplitDetailsSheet extends StatelessWidget {
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Text(
-                                      "${s['from']} pays ${s['to']}",
+                                      "${_label(s['from']?.toString())} pays ${_label(s['to']?.toString())}",
                                       style: const TextStyle(
                                         color: AppColors.textPrimary,
                                         fontWeight: FontWeight.w500,

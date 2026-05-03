@@ -1,8 +1,10 @@
+import 'package:flutter/material.dart';
+
 class CategoryModel {
   final String name;
-  final String icon;
-  final int color;
-  final String type; // 'income' or 'expense'
+  final IconData icon;
+  final Color color;
+  final String type;
 
   CategoryModel({
     required this.name,

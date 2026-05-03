@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:finance_app/data/firestore_user.dart';
 import 'package:finance_app/theme/theme.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -47,7 +49,11 @@ class _AddGoalPageState extends State<AddGoalPage> {
       return;
     }
 
-    await FirebaseFirestore.instance.collection('goals').add({
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    await UserFirestore(uid).goals.doc().set({
+      "userId": uid,
       "title": titleCtrl.text,
       "targetAmount": int.parse(amountCtrl.text),
       "savedAmount": 0,

@@ -1,4 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:finance_app/data/firestore_user.dart';
+import 'package:finance_app/features/split/split_self_person.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../../theme/theme.dart';
 
@@ -9,12 +12,18 @@ class PersonSplitPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final splitRef = FirebaseFirestore.instance.collection('splits');
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return const Scaffold(body: Center(child: Text("Not signed in")));
+    }
+
+    final splitRef = UserFirestore(uid).splits;
+    final selfName = splitSelfDisplayName(FirebaseAuth.instance.currentUser);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(personName),
+        title: Text(personName == selfName ? 'You' : personName),
         backgroundColor: AppColors.background,
         elevation: 0,
       ),
@@ -52,12 +61,25 @@ class PersonSplitPage extends StatelessWidget {
               Color color = AppColors.textSecondary;
               final owes = (data['owe'] ?? []) as List;
               for (final e in owes) {
-                if (e['from'] == personName) {
-                  status = 'You owe ${e['to']} ₹${e['amount']}';
+                final from = e['from']?.toString() ?? '';
+                final to = e['to']?.toString() ?? '';
+                final toLabel = to == selfName ? 'You' : to;
+                final fromLabel = from == selfName ? 'You' : from;
+
+                if (from == personName) {
+                  if (personName == selfName) {
+                    status = 'You owe $toLabel ₹${e['amount']}';
+                  } else {
+                    status = '$personName owes $toLabel ₹${e['amount']}';
+                  }
                   color = AppColors.expense;
                   break;
-                } else if (e['to'] == personName) {
-                  status = '${e['from']} owes you ₹${e['amount']}';
+                } else if (to == personName) {
+                  if (personName == selfName) {
+                    status = '$fromLabel owes you ₹${e['amount']}';
+                  } else {
+                    status = '$fromLabel owes $personName ₹${e['amount']}';
+                  }
                   color = AppColors.income;
                   break;
                 }
@@ -77,10 +99,7 @@ class PersonSplitPage extends StatelessWidget {
                   child: const Icon(Icons.delete, color: Colors.white),
                 ),
                 onDismissed: (_) async {
-                  await FirebaseFirestore.instance
-                      .collection('splits')
-                      .doc(personSplits[index].id)
-                      .delete();
+                  await splitRef.doc(personSplits[index].id).delete();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("Split deleted")),
                   );

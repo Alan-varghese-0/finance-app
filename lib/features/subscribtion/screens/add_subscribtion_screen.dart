@@ -1,6 +1,7 @@
+import 'package:finance_app/data/firestore_user.dart';
 import 'package:finance_app/theme/theme.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AddSubscriptionScreen extends StatefulWidget {
   const AddSubscriptionScreen({super.key});
@@ -18,12 +19,14 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
 
   final List<String> repeatOptions = ["daily", "weekly", "monthly", "yearly"];
 
-  final collection = FirebaseFirestore.instance.collection('subscriptions');
-
   void saveSubscription() async {
     if (titleController.text.isEmpty || amountController.text.isEmpty) return;
 
-    await collection.add({
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    await UserFirestore(uid).subscriptions.add({
+      "userId": uid,
       "title": titleController.text,
       "amount": double.parse(amountController.text),
       "nextDate": selectedDate,

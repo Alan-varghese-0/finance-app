@@ -1,6 +1,9 @@
 // ignore_for_file: unused_local_variable
 
+import 'package:finance_app/data/firestore_user.dart';
+import 'package:finance_app/features/split/split_self_person.dart';
 import 'package:finance_app/theme/theme.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -15,8 +18,15 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
   final titleController = TextEditingController();
   final amountController = TextEditingController();
 
-  final peopleCollection = FirebaseFirestore.instance.collection('people');
-  final splitCollection = FirebaseFirestore.instance.collection('splits');
+  late final UserFirestore _fs;
+
+  @override
+  void initState() {
+    super.initState();
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    _fs = UserFirestore(uid);
+    ensureSplitSelfPerson(_fs);
+  }
 
   Map<String, bool> selectedPeople = {};
 
@@ -124,7 +134,8 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
       if (creditors[j]['balance'] == 0) j++;
     }
 
-    await splitCollection.add({
+    await _fs.splits.doc().set({
+      "userId": _fs.uid,
       "title": title,
       "amount": totalAmount,
       "paidBy": paidBy.toList(),
@@ -142,7 +153,8 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
       appBar: AppBar(
         title: const Text("Add Split"),
         centerTitle: true,
-        backgroundColor: AppColors.primary,
+        backgroundColor: AppColors.background,
+
         foregroundColor: Colors.white,
         elevation: 1,
       ),
@@ -281,7 +293,7 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
                   vertical: 16,
                 ),
                 child: StreamBuilder<QuerySnapshot>(
-                  stream: peopleCollection.snapshots(),
+                  stream: _fs.people.snapshots(),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
                       return const Center(child: CircularProgressIndicator());

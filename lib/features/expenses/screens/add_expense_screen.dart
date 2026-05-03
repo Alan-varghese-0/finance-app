@@ -1,7 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:finance_app/data/firestore_user.dart';
 import 'package:finance_app/data/models/categories.dart';
 import 'package:finance_app/features/expenses/models/category.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
 import 'package:finance_app/theme/theme.dart';
@@ -118,20 +120,32 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       return;
     }
 
-    final collection = FirebaseFirestore.instance.collection('expenses');
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Not signed in")),
+      );
+      return;
+    }
 
-    final data = {
-      'title': titleController.text,
+    final collection = UserFirestore(uid).expenses;
+
+    final payload = <String, dynamic>{
+      'userId': uid,
+      'title': titleController.text.trim(),
       'amount': double.parse(amountController.text),
-      'date': selectedDate,
+      'date': Timestamp.fromDate(selectedDate),
       'type': selectedType,
       'category': selectedCategory!.name,
     };
 
     if (widget.id == null) {
-      await collection.add(data);
+      await collection.doc().set(payload);
     } else {
-      await collection.doc(widget.id).update(data);
+      await collection.doc(widget.id).set(
+            payload,
+            SetOptions(merge: true),
+          );
     }
 
     Navigator.pop(context);
@@ -287,30 +301,24 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? Color(cat.color).withOpacity(0.2)
+                              ? cat.color.withOpacity(0.2)
                               : AppColors.surface,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: isSelected
-                                ? Color(cat.color)
-                                : AppColors.border,
+                            color: isSelected ? cat.color : AppColors.border,
                             width: 1.5,
                           ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              getIcon(cat.icon),
-                              size: 18,
-                              color: Color(cat.color),
-                            ),
+                            Icon(cat.icon, size: 18, color: cat.color),
                             const SizedBox(width: 6),
                             Text(
                               cat.name,
                               style: TextStyle(
                                 color: isSelected
-                                    ? Color(cat.color)
+                                    ? cat.color
                                     : AppColors.textPrimary,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -371,8 +379,21 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: selectedType == 'income'
+                      ? AppColors.income
+                      : AppColors.expense,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
                 onPressed: saveExpense,
-                child: Text(isEdit ? "Update" : "Add Transaction"),
+                child: Text(
+                  isEdit ? "Update" : "Add Transaction",
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: AppColors.background,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ),
           ],

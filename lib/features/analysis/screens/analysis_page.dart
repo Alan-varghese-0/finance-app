@@ -1,3 +1,8 @@
+import 'package:finance_app/data/firestore_user.dart';
+import 'package:finance_app/features/split/split_self_person.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+
 import 'package:finance_app/features/analysis/widget/bar_chart_widget.dart';
 import 'package:finance_app/features/analysis/widget/line_chart_widget.dart';
 import 'package:finance_app/features/analysis/widget/pie_chart_widget.dart';
@@ -5,32 +10,107 @@ import 'package:finance_app/features/analysis/widget/smart_insight.dart';
 import 'package:finance_app/features/analysis/widget/split_insight.dart';
 import 'package:finance_app/features/analysis/widget/subscribtion_insight.dart';
 import 'package:finance_app/features/analysis/widget/summery_card.dart';
-import 'package:flutter/material.dart';
+import 'package:finance_app/theme/theme.dart';
 
 class AnalysisPage extends StatelessWidget {
   const AnalysisPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Analysis")),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+
+    final fs = UserFirestore(uid);
+    final expenseCollection = fs.expenses;
+    final subscriptionCollection = fs.subscriptions;
+    final splitCollection = fs.splits;
+
+    return Container(
+      color: AppColors.background,
+      child: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          const SliverToBoxAdapter(child: SizedBox(height: 40)),
+
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14),
+              child: Text(
+                "Analysis data",
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 24),
+              ),
+            ),
+          ),
+
+          const SliverToBoxAdapter(child: SizedBox(height: 50)),
+
+          const SliverToBoxAdapter(child: SummaryCards()),
+
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+          _section(
+            "Weekly Spending",
+            BarChartWidget(expenseCollection: expenseCollection),
+          ),
+          _section(
+            "Monthly Trend",
+            LineChartWidget(expenseCollection: expenseCollection),
+          ),
+
+          _section(
+            "Splits",
+            SplitInsights(
+              splitCollection: splitCollection,
+              selfName: splitSelfDisplayName(FirebaseAuth.instance.currentUser),
+            ),
+          ),
+
+          _section(
+            "Subscriptions",
+            SubscriptionInsights(
+              subscriptionCollection: subscriptionCollection,
+            ),
+          ),
+
+          _section(
+            "Category Split",
+            PieChartWidget(
+              expenseCollection: expenseCollection,
+              subscriptionCollection: subscriptionCollection,
+              splitCollection: splitCollection,
+            ),
+          ),
+
+          _section("Smart Insights", const SmartInsights()),
+
+          const SliverToBoxAdapter(child: SizedBox(height: 16)),
+        ],
+      ),
+    );
+  }
+
+  Widget _section(String title, Widget child) {
+    return SliverToBoxAdapter(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+        ),
         child: Column(
-          children: const [
-            SummaryCards(),
-            SizedBox(height: 20),
-            PieChartWidget(),
-            SizedBox(height: 20),
-            LineChartWidget(),
-            SizedBox(height: 20),
-            BarChartWidget(),
-            SizedBox(height: 20),
-            SubscriptionInsights(),
-            SizedBox(height: 20),
-            SplitInsights(),
-            SizedBox(height: 20),
-            SmartInsights(),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 10),
+            child,
           ],
         ),
       ),

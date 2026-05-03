@@ -1,5 +1,6 @@
+import 'package:finance_app/data/firestore_user.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AddPersonScreen extends StatefulWidget {
   const AddPersonScreen({super.key});
@@ -11,12 +12,13 @@ class AddPersonScreen extends StatefulWidget {
 class _AddPersonScreenState extends State<AddPersonScreen> {
   final controller = TextEditingController();
 
-  final peopleCollection = FirebaseFirestore.instance.collection('people');
-
   void savePerson() async {
     if (controller.text.isEmpty) return;
 
-    await peopleCollection.add({"name": controller.text});
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    await UserFirestore(uid).people.add({"name": controller.text});
 
     Navigator.pop(context);
   }

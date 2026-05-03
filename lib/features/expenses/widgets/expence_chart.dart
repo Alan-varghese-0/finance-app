@@ -18,7 +18,7 @@ class ExpenseChart extends StatefulWidget {
 class _ExpenseChartState extends State<ExpenseChart> {
   ChartFilter selectedFilter = ChartFilter.all;
 
-  /// 🔥 GROUP BY CATEGORY + TYPE
+  /// 🔥 GROUP DATA
   Map<String, Map<TransactionType, double>> getCategoryTotals() {
     final Map<String, Map<TransactionType, double>> data = {};
 
@@ -34,25 +34,23 @@ class _ExpenseChartState extends State<ExpenseChart> {
     return data;
   }
 
-  /// 🔥 OPTIONAL TYPO FIX (Subscribtion → Subscription)
+  /// 🔥 FIX CATEGORY NAME
   String normalizeCategory(String name) {
     final n = name.toLowerCase().trim();
-
     if (n.contains('subscrib')) return 'Subscription';
-
     return name;
   }
 
-  /// 🔥 SAFE CATEGORY FETCH (FIXED)
+  /// 🔥 SAFE CATEGORY FETCH
   CategoryModel getCategory(String name) {
     final normalizedName = normalizeCategory(name).toLowerCase().trim();
 
     return categories.firstWhere(
       (c) => c.name.toLowerCase().trim() == normalizedName,
       orElse: () => CategoryModel(
-        name: name, // 👈 KEEP ORIGINAL NAME (no more "Unknown" confusion)
-        color: 0xFF888888,
-        icon: Icons.help_outline.codePoint.toString(),
+        name: name,
+        color: const Color(0xFF888888),
+        icon: Icons.help_outline,
         type: "expense",
       ),
     );
@@ -77,7 +75,6 @@ class _ExpenseChartState extends State<ExpenseChart> {
       typeMap.forEach((type, amount) {
         if (amount <= 0) return;
 
-        /// ✅ FILTER LOGIC
         if (selectedFilter == ChartFilter.expense &&
             type != TransactionType.expense)
           return;
@@ -87,7 +84,7 @@ class _ExpenseChartState extends State<ExpenseChart> {
           return;
 
         final cat = getCategory(category);
-        final baseColor = Color(cat.color);
+        final baseColor = cat.color;
 
         final color = type == TransactionType.expense
             ? baseColor
@@ -151,41 +148,112 @@ class _ExpenseChartState extends State<ExpenseChart> {
 
           const SizedBox(height: 20),
 
-          /// 🔥 CHART
+          /// 🔥 FIXED CHART + SCROLLABLE LEGEND
           SizedBox(
             height: 300,
-            child: SfCircularChart(
-              tooltipBehavior: TooltipBehavior(enable: true),
+            child: Column(
+              children: [
+                /// 🥧 CHART (FIXED AREA)
+                Expanded(
+                  child: SfCircularChart(
+                    tooltipBehavior: TooltipBehavior(enable: true),
 
-              legend: Legend(
-                isVisible: true,
-                overflowMode: LegendItemOverflowMode.wrap,
-                textStyle: const TextStyle(color: Colors.white),
-              ),
+                    /// ❌ Disable default legend
+                    legend: const Legend(isVisible: false),
 
-              series: <CircularSeries>[
-                DoughnutSeries<_ChartData, String>(
-                  dataSource: chartData,
-                  xValueMapper: (data, _) => data.name,
-                  yValueMapper: (data, _) => data.amount,
-                  pointColorMapper: (data, _) => data.color,
+                    /// 🔥 Center Total
+                    annotations: [
+                      CircularChartAnnotation(
+                        widget: Text(
+                          "₹${total.toStringAsFixed(0)}",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
 
-                  dataLabelMapper: (data, _) {
-                    final percent = (data.amount / total) * 100;
-                    return "${percent.toStringAsFixed(0)}%";
-                  },
+                    series: <CircularSeries>[
+                      DoughnutSeries<_ChartData, String>(
+                        dataSource: chartData,
+                        xValueMapper: (data, _) => data.name,
+                        yValueMapper: (data, _) => data.amount,
+                        pointColorMapper: (data, _) => data.color,
 
-                  dataLabelSettings: const DataLabelSettings(
-                    isVisible: true,
-                    textStyle: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
+                        dataLabelMapper: (data, _) {
+                          final percent = (data.amount / total) * 100;
+                          return "${percent.toStringAsFixed(0)}%";
+                        },
+
+                        dataLabelSettings: const DataLabelSettings(
+                          isVisible: true,
+                          textStyle: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        animationDuration: 1200,
+                        innerRadius: '55%',
+                        selectionBehavior: SelectionBehavior(enable: true),
+                      ),
+                    ],
                   ),
+                ),
 
-                  animationDuration: 1200,
-                  innerRadius: '50%',
+                const SizedBox(height: 10),
+
+                /// 📜 SCROLLABLE LEGEND (FIXED HEIGHT)
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.arrow_back_ios,
+                      size: 14,
+                      color: Colors.white54,
+                    ),
+
+                    Expanded(
+                      child: SizedBox(
+                        height: 60,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: chartData.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 12),
+                          itemBuilder: (context, index) {
+                            final item = chartData[index];
+
+                            return Row(
+                              children: [
+                                Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                    color: item.color,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  item.name,
+                                  style: const TextStyle(color: Colors.white70),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+
+                    const Icon(
+                      Icons.arrow_forward_ios,
+                      size: 14,
+                      color: Colors.white54,
+                    ),
+                  ],
                 ),
               ],
             ),

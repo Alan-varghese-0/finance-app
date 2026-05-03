@@ -17,3 +17,18 @@ class MockData {
 
   static List<double> monthlySpending = [2000, 3000, 2500, 4000, 3500, 4200];
 }
+
+/// 🔥 Separate models (IMPORTANT FIX)
+class CategoryChartData {
+  final String x;
+  final double y;
+
+  CategoryChartData(this.x, this.y);
+}
+
+class NumericChartData {
+  final double x;
+  final double y;
+
+  NumericChartData(this.x, this.y);
+}

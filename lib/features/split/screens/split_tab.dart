@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:finance_app/data/firestore_user.dart';
 import 'package:finance_app/features/split/screens/people_show_page.dart';
+import 'package:finance_app/features/split/split_self_person.dart';
 import 'package:finance_app/features/split/widget/split_details_screens.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:finance_app/theme/theme.dart';
 
@@ -17,6 +20,15 @@ class _SplitTabState extends State<SplitTab>
     with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      ensureSplitSelfPerson(UserFirestore(uid));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -193,7 +205,10 @@ class _SplitTabState extends State<SplitTab>
         child: ListTile(
           onTap: () => showModalBottomSheet(
             context: context,
-            builder: (_) => SplitDetailsSheet(data: doc),
+            builder: (_) => SplitDetailsSheet(
+              data: doc,
+              selfName: splitSelfDisplayName(FirebaseAuth.instance.currentUser),
+            ),
           ),
 
           leading: Container(
@@ -262,9 +277,12 @@ class _SplitTabState extends State<SplitTab>
             onPressed: () async {
               final name = controller.text.trim();
               if (name.isNotEmpty) {
-                await FirebaseFirestore.instance.collection('people').add({
-                  "name": name,
-                });
+                final uid = FirebaseAuth.instance.currentUser?.uid;
+                if (uid != null) {
+                  await UserFirestore(uid).people.add({
+                    "name": name,
+                  });
+                }
               }
               Navigator.pop(ctx);
             },

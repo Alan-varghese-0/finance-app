@@ -127,10 +127,10 @@ class ExpenseTile extends StatelessWidget {
           leading: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Color(category.color).withOpacity(0.15),
+              color: category.color.withOpacity(0.15),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(getIcon(category.icon), color: Color(category.color)),
+            child: Icon(category.icon, color: category.color),
           ),
 
           /// TITLE
@@ -149,14 +149,14 @@ class ExpenseTile extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Color(category.color).withOpacity(0.15),
+                  color: category.color.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   category.name,
                   style: TextStyle(
                     fontSize: 11,
-                    color: Color(category.color),
+                    color: category.color,
                     fontWeight: FontWeight.w500,
                   ),
                 ),

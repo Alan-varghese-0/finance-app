@@ -1,11 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:finance_app/features/expenses/widgets/expence_chart.dart';
-
 import 'package:finance_app/features/home/AllTransactionspage.dart';
 import 'package:finance_app/theme/theme.dart';
 import 'package:finance_app/features/subscribtion/widget/nearest_subscribtionpage.dart';
 import 'package:finance_app/features/goal/widget/priorityGoal.dart';
 import 'package:flutter/material.dart';
+
 import '../models/expense.dart';
 import '../widgets/expense_title.dart';
 
@@ -30,9 +31,15 @@ class _ExpenseTabState extends State<ExpenseTab>
   @override
   bool get wantKeepAlive => true;
 
+  final String? uid = FirebaseAuth.instance.currentUser?.uid;
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
+
+    if (uid == null) {
+      return const Center(child: Text("User not logged in"));
+    }
 
     return StreamBuilder<QuerySnapshot>(
       stream: widget.expenseCollection.snapshots(),
@@ -41,12 +48,11 @@ class _ExpenseTabState extends State<ExpenseTab>
           return _bg(const CircularProgressIndicator());
         }
 
-        /// ✅ NORMAL EXPENSES
+        /// ✅ USER EXPENSES ONLY
         final expenses = expenseSnap.data!.docs
             .map((e) => Expense.fromMap(e.id, e.data() as Map<String, dynamic>))
             .toList();
 
-        /// 🔥 SUBSCRIPTIONS STREAM
         return StreamBuilder<QuerySnapshot>(
           stream: widget.subscriptionCollection.snapshots(),
           builder: (context, subSnap) {
@@ -54,7 +60,7 @@ class _ExpenseTabState extends State<ExpenseTab>
               return _bg(const CircularProgressIndicator());
             }
 
-            /// ✅ CONVERT SUBSCRIPTIONS → EXPENSE FORMAT
+            /// 🔥 SUBSCRIPTIONS → EXPENSE FORMAT
             final subscriptionExpenses = subSnap.data!.docs.map((doc) {
               final data = doc.data() as Map<String, dynamic>;
 
@@ -74,7 +80,8 @@ class _ExpenseTabState extends State<ExpenseTab>
 
               return Expense(
                 id: doc.id,
-                title: data['title'],
+                userId: uid!,
+                title: data['title'] ?? '',
                 amount: monthlyAmount,
                 date: date,
                 type: TransactionType.expense,
@@ -112,7 +119,7 @@ class _ExpenseTabState extends State<ExpenseTab>
 
                   const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
-                  /// 📋 TRANSACTIONS CARD 🔥
+                  /// 📋 TRANSACTIONS CARD
                   SliverToBoxAdapter(
                     child: Container(
                       margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -149,7 +156,7 @@ class _ExpenseTabState extends State<ExpenseTab>
 
                           const SizedBox(height: 10),
 
-                          /// LIST PREVIEW
+                          /// EMPTY STATE
                           if (expenses.isEmpty)
                             const Padding(
                               padding: EdgeInsets.all(20),
@@ -184,44 +191,34 @@ class _ExpenseTabState extends State<ExpenseTab>
 
                           const SizedBox(height: 6),
 
-                          /// VIEW ALL (future expansion)
+                          /// VIEW ALL
                           Align(
                             alignment: Alignment.center,
-                            child: Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.surface,
-                                  foregroundColor: AppColors.textPrimary,
-                                  elevation: 0,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    side: BorderSide(color: AppColors.border),
-                                  ),
-                                ),
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => AllTransactionsPage(
-                                        expenseCollection:
-                                            widget.expenseCollection,
-                                        subscriptionCollection:
-                                            widget.subscriptionCollection,
-                                        goalsCollection: widget.goalsCollection,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                child: const Text(
-                                  "View All Transactions",
-                                  style: TextStyle(fontWeight: FontWeight.w600),
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.surface,
+                                foregroundColor: AppColors.textPrimary,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: BorderSide(color: AppColors.border),
                                 ),
                               ),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => AllTransactionsPage(
+                                      expenseCollection:
+                                          widget.expenseCollection,
+                                      subscriptionCollection:
+                                          widget.subscriptionCollection,
+                                      goalsCollection: widget.goalsCollection,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: const Text("View All Transactions"),
                             ),
                           ),
                         ],
@@ -239,7 +236,6 @@ class _ExpenseTabState extends State<ExpenseTab>
     );
   }
 
-  /// 🎨 BACKGROUND
   Widget _bg(Widget child) {
     return Container(
       color: AppColors.background,
