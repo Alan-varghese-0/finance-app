@@ -23,9 +23,13 @@ class PersonSplitPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(personName == selfName ? 'You' : personName),
+        title: Text(
+          personName == selfName ? 'You' : personName,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+        ),
         backgroundColor: AppColors.background,
         elevation: 0,
+        foregroundColor: AppColors.textPrimary,
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: splitRef.snapshots(),
@@ -36,7 +40,6 @@ class PersonSplitPage extends StatelessWidget {
 
           final allSplits = snapshot.data!.docs;
 
-          /// 🔥 FILTER USING `owe`
           final personSplits = allSplits.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
             final owes = (data['owe'] ?? []) as List;
@@ -46,17 +49,25 @@ class PersonSplitPage extends StatelessWidget {
           }).toList();
 
           if (personSplits.isEmpty) {
-            return Center(child: Text("No splits for $personName"));
+            return Center(
+              child: Text(
+                "No splits for $personName",
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            );
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
             itemCount: personSplits.length,
             itemBuilder: (context, index) {
               final doc = personSplits[index];
               final data = doc.data() as Map<String, dynamic>;
 
-              // Compute status and color for this split
               String status = '';
               Color color = AppColors.textSecondary;
               final owes = (data['owe'] ?? []) as List;
@@ -72,7 +83,7 @@ class PersonSplitPage extends StatelessWidget {
                   } else {
                     status = '$personName owes $toLabel ₹${e['amount']}';
                   }
-                  color = AppColors.expense;
+                  color = AppColors.income;
                   break;
                 } else if (to == personName) {
                   if (personName == selfName) {
@@ -80,7 +91,7 @@ class PersonSplitPage extends StatelessWidget {
                   } else {
                     status = '$fromLabel owes $personName ₹${e['amount']}';
                   }
-                  color = AppColors.income;
+                  color = AppColors.expense;
                   break;
                 }
               }
@@ -89,14 +100,18 @@ class PersonSplitPage extends StatelessWidget {
                 key: ValueKey(doc.id),
                 direction: DismissDirection.endToStart,
                 background: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 6),
-                  padding: const EdgeInsets.only(right: 20),
-                  alignment: Alignment.centerRight,
+                  margin: const EdgeInsets.symmetric(vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(14),
+                    color: Colors.redAccent,
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Icon(Icons.delete, color: Colors.white),
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 28),
+                  child: const Icon(
+                    Icons.delete,
+                    color: Colors.white,
+                    size: 28,
+                  ),
                 ),
                 onDismissed: (_) async {
                   await splitRef.doc(personSplits[index].id).delete();
@@ -105,34 +120,57 @@ class PersonSplitPage extends StatelessWidget {
                   );
                 },
                 child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 6),
-                  padding: const EdgeInsets.all(14),
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.border),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppColors.border.withOpacity(0.15),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(0.08),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        data['title'] ?? '',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              data['title'] ?? '',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 17,
+                                color: AppColors.textPrimary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(
+                            "₹${data['amount'] ?? 0}",
+                            style: TextStyle(
+                              color: AppColors.expense.withOpacity(0.95),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        "₹${data['amount'] ?? 0}",
-                        style: const TextStyle(color: AppColors.expense),
-                      ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
                       Text(
                         status,
                         style: TextStyle(
                           color: color,
                           fontWeight: FontWeight.w600,
+                          fontSize: 15,
                         ),
                       ),
                     ],

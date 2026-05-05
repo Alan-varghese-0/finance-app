@@ -139,7 +139,9 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
                   selectedColor: AppColors.textPrimary,
                   backgroundColor: AppColors.surface,
                   labelStyle: TextStyle(
-                    color: selected ? Colors.white : AppColors.textPrimary,
+                    color: selected
+                        ? AppColors.background
+                        : AppColors.textPrimary,
                   ),
                 );
               }).toList(),
@@ -151,6 +153,11 @@ class _AddSubscriptionScreenState extends State<AddSubscriptionScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  foregroundColor: AppColors.background,
+                  backgroundColor: AppColors.expense,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
                 onPressed: saveSubscription,
                 child: const Text("Save Subscription"),
               ),

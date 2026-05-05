@@ -125,6 +125,8 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
         "from": debtors[i]['name'],
         "to": creditors[j]['name'],
         "amount": amt.round(),
+        "isPaid": false, // ✅ NEW
+        "paidAt": null, // ✅ NEW
       });
 
       debtors[i]['balance'] -= amt;

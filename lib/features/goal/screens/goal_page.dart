@@ -21,7 +21,6 @@ class GoalsPage extends StatelessWidget {
 
       /// ➕ ADD GOAL
       floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.textPrimary,
         onPressed: () {
           Navigator.push(
             context,

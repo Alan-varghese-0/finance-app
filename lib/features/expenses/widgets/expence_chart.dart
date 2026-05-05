@@ -23,12 +23,13 @@ class _ExpenseChartState extends State<ExpenseChart> {
     final Map<String, Map<TransactionType, double>> data = {};
 
     for (var e in widget.expenses) {
-      data[e.category] ??= {
+      final bucket = canonicalCategoryName(e.category, e.type);
+      data[bucket] ??= {
         TransactionType.expense: 0,
         TransactionType.income: 0,
       };
 
-      data[e.category]![e.type] = (data[e.category]![e.type] ?? 0) + e.amount;
+      data[bucket]![e.type] = (data[bucket]![e.type] ?? 0) + e.amount;
     }
 
     return data;

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:finance_app/data/firestore_user.dart';
 import 'package:finance_app/data/models/categories.dart';
 import 'package:finance_app/features/expenses/models/category.dart';
+import 'package:finance_app/features/expenses/models/expense.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
@@ -52,8 +53,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
     /// restore category if editing
     if (widget.category != null) {
+      final t = selectedType == 'income'
+          ? TransactionType.income
+          : TransactionType.expense;
+      final resolved = canonicalCategoryName(widget.category!, t);
       selectedCategory = categories.firstWhere(
-        (c) => c.name == widget.category,
+        (c) => c.name == resolved,
         orElse: () => categories.first,
       );
     }
@@ -67,7 +72,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   List<CategoryModel> get filteredCategories {
-    return categories.where((c) => c.type == selectedType).toList();
+    return categories
+        .where((c) => c.type == selectedType && c.pickable)
+        .toList();
   }
 
   IconData getIcon(String name) {
@@ -122,9 +129,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Not signed in")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Not signed in")));
       return;
     }
 
@@ -142,10 +149,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     if (widget.id == null) {
       await collection.doc().set(payload);
     } else {
-      await collection.doc(widget.id).set(
-            payload,
-            SetOptions(merge: true),
-          );
+      await collection.doc(widget.id).set(payload, SetOptions(merge: true));
     }
 
     Navigator.pop(context);
@@ -166,7 +170,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             /// TITLE
             TextField(
               controller: titleController,
-              style: const TextStyle(color: AppColors.background),
+              style: const TextStyle(color: AppColors.textPrimary),
               decoration: const InputDecoration(
                 labelText: "Title",
                 prefixIcon: Icon(Icons.title),
@@ -179,7 +183,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             TextField(
               controller: amountController,
               keyboardType: TextInputType.number,
-              style: const TextStyle(color: AppColors.background),
+              style: const TextStyle(color: AppColors.textPrimary),
               decoration: const InputDecoration(
                 labelText: "Amount",
                 prefixIcon: Icon(Icons.currency_rupee),

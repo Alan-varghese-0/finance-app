@@ -5,11 +5,14 @@ class CategoryModel {
   final IconData icon;
   final Color color;
   final String type;
+  /// When false, hidden from manual add-expense category pickers (chart-only).
+  final bool pickable;
 
   CategoryModel({
     required this.name,
     required this.icon,
     required this.color,
     required this.type,
+    this.pickable = true,
   });
 }

@@ -50,115 +50,118 @@ class NearestSubscriptionsWidget extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.border),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              /// 🔹 HEADER (clickable)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    "Upcoming Bills",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: AppColors.textPrimary,
+          child: SingleChildScrollView(
+            physics: NeverScrollableScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                /// 🔹 HEADER (clickable)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      "Upcoming Bills",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => SubscriptionTab(
-                            subscriptionCollection: subscriptionCollection,
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => SubscriptionTab(
+                              subscriptionCollection: subscriptionCollection,
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Text("View All"),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 6),
+
+                /// 🔥 LIST
+                ...nearest.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final date = (data['nextDate'] as Timestamp).toDate();
+
+                  final daysLeft = date.difference(DateTime.now()).inDays;
+
+                  /// 🧠 TEXT
+                  String dayText;
+                  if (daysLeft < 0) {
+                    dayText = "Overdue";
+                  } else if (daysLeft == 0) {
+                    dayText = "Today";
+                  } else if (daysLeft == 1) {
+                    dayText = "Tomorrow";
+                  } else {
+                    dayText = "in $daysLeft days";
+                  }
+
+                  /// 🎨 COLOR
+                  Color color;
+                  if (daysLeft <= 0) {
+                    color = Colors.red;
+                  } else if (daysLeft <= 5) {
+                    color = Colors.orange;
+                  } else {
+                    color = Colors.green;
+                  }
+
+                  return Container(
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.repeat, color: color),
+
+                        const SizedBox(width: 10),
+
+                        /// TEXT
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                data['title'],
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                "$dayText • ${date.day}/${date.month}",
+                                style: TextStyle(fontSize: 12, color: color),
+                              ),
+                            ],
                           ),
                         ),
-                      );
-                    },
-                    child: const Text("View All"),
-                  ),
-                ],
-              ),
 
-              const SizedBox(height: 6),
-
-              /// 🔥 LIST
-              ...nearest.map((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                final date = (data['nextDate'] as Timestamp).toDate();
-
-                final daysLeft = date.difference(DateTime.now()).inDays;
-
-                /// 🧠 TEXT
-                String dayText;
-                if (daysLeft < 0) {
-                  dayText = "Overdue";
-                } else if (daysLeft == 0) {
-                  dayText = "Today";
-                } else if (daysLeft == 1) {
-                  dayText = "Tomorrow";
-                } else {
-                  dayText = "in $daysLeft days";
-                }
-
-                /// 🎨 COLOR
-                Color color;
-                if (daysLeft <= 0) {
-                  color = Colors.red;
-                } else if (daysLeft <= 5) {
-                  color = Colors.orange;
-                } else {
-                  color = Colors.green;
-                }
-
-                return Container(
-                  margin: const EdgeInsets.symmetric(vertical: 6),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.repeat, color: color),
-
-                      const SizedBox(width: 10),
-
-                      /// TEXT
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              data['title'],
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              "$dayText • ${date.day}/${date.month}",
-                              style: TextStyle(fontSize: 12, color: color),
-                            ),
-                          ],
+                        /// AMOUNT
+                        Text(
+                          "₹${data['amount']}",
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
-                      ),
-
-                      /// AMOUNT
-                      Text(
-                        "₹${data['amount']}",
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ],
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ],
+            ),
           ),
         );
       },
@@ -205,7 +208,21 @@ class NearestSubscriptionsWidget extends StatelessWidget {
 
             ElevatedButton(
               onPressed: () => _goToSubscriptions(context),
-              child: const Text("Add Subscription"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.textPrimary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+              ),
+              child: const Text(
+                "Add Subscription",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         ),

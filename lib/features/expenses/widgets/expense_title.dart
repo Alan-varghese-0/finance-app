@@ -57,7 +57,9 @@ class ExpenseTile extends StatelessWidget {
     final isIncome = expense.type == TransactionType.income;
 
     /// 🔥 CATEGORY DATA
-    final category = getCategory(expense.category);
+    final category = getCategory(
+      canonicalCategoryName(expense.category, expense.type),
+    );
 
     return Dismissible(
       key: Key(expense.id),

@@ -106,126 +106,131 @@ class PriorityGoalsWidget extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.border),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              /// 🔹 HEADER
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    "Priority Goals",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: AppColors.textPrimary,
+          child: SingleChildScrollView(
+            physics: NeverScrollableScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                /// 🔹 HEADER
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      "Priority Goals",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                  ),
-                  TextButton(
-                    onPressed: () {
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                GoalsPage(goalsCollection: goalsCollection),
+                          ),
+                        );
+                      },
+                      child: const Text("View All"),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 6),
+
+                /// 🔥 GOAL LIST
+                ...topGoals.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+
+                  final saved = (data['savedAmount'] ?? 0).toDouble();
+                  final target = (data['targetAmount'] ?? 1).toDouble();
+                  final progress = target == 0
+                      ? 0
+                      : (saved / target).clamp(0, 1);
+
+                  final priority = data['priority'] ?? 0;
+                  final color = priorityColor(priority);
+
+                  return GestureDetector(
+                    onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) =>
-                              GoalsPage(goalsCollection: goalsCollection),
+                          builder: (_) => GoalDetailsPage(goalDoc: doc),
                         ),
                       );
                     },
-                    child: const Text("View All"),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 6),
-
-              /// 🔥 GOAL LIST
-              ...topGoals.map((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-
-                final saved = (data['savedAmount'] ?? 0).toDouble();
-                final target = (data['targetAmount'] ?? 1).toDouble();
-                final progress = target == 0 ? 0 : (saved / target).clamp(0, 1);
-
-                final priority = data['priority'] ?? 0;
-                final color = priorityColor(priority);
-
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => GoalDetailsPage(goalDoc: doc),
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    );
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 6),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.flag, color: color),
+                      child: Row(
+                        children: [
+                          Icon(Icons.flag, color: color),
 
-                        const SizedBox(width: 10),
+                          const SizedBox(width: 10),
 
-                        /// TEXT
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                data['title'] ?? '',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
+                          /// TEXT
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  data['title'] ?? '',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 4),
+                                const SizedBox(height: 4),
 
-                              /// PROGRESS BAR
-                              LinearProgressIndicator(
-                                value: progress,
-                                backgroundColor: color.withOpacity(0.2),
-                                color: color,
-                              ),
+                                /// PROGRESS BAR
+                                LinearProgressIndicator(
+                                  value: progress,
+                                  backgroundColor: color.withOpacity(0.2),
+                                  color: color,
+                                ),
 
-                              const SizedBox(height: 4),
+                                const SizedBox(height: 4),
 
-                              Text(
-                                "₹${saved.toInt()} / ₹${target.toInt()}",
-                                style: TextStyle(fontSize: 12, color: color),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        /// PRIORITY BADGE
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: color,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            "P$priority",
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: Colors.white,
+                                Text(
+                                  "₹${saved.toInt()} / ₹${target.toInt()}",
+                                  style: TextStyle(fontSize: 12, color: color),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
-                      ],
+
+                          /// PRIORITY BADGE
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: color,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              "P$priority",
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              }).toList(),
-            ],
+                  );
+                }).toList(),
+              ],
+            ),
           ),
         );
       },

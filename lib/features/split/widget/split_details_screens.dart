@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:finance_app/data/models/categories.dart';
+import 'package:finance_app/features/expenses/models/expense.dart';
 import 'package:flutter/material.dart';
 import '../../../theme/theme.dart';
 
-class SplitDetailsSheet extends StatelessWidget {
+class SplitDetailsSheet extends StatefulWidget {
   final QueryDocumentSnapshot data;
   final String selfName;
 
@@ -12,92 +14,73 @@ class SplitDetailsSheet extends StatelessWidget {
     required this.selfName,
   });
 
+  @override
+  State<SplitDetailsSheet> createState() => _SplitDetailsSheetState();
+}
+
+class _SplitDetailsSheetState extends State<SplitDetailsSheet> {
+  late List<Map<String, dynamic>> settlements;
+
+  @override
+  void initState() {
+    super.initState();
+
+    settlements = List<Map<String, dynamic>>.from((widget.data['owe'] ?? []));
+  }
+
   String _label(String? name) {
     if (name == null || name.isEmpty) return '';
-    return name == selfName ? 'You' : name;
+    return name == widget.selfName ? 'You' : name;
   }
 
-  /// 🔥 BALANCE
-  List<Map<String, dynamic>> calculateBalances(List people) {
-    return people.map((p) {
-      double paid = (p['paid'] ?? 0).toDouble();
-      double share = (p['share'] ?? 0).toDouble();
+  /// 🔥 MARK COMPLETE
+  Future<void> markComplete(int index) async {
+    final s = settlements[index];
 
-      double balance = paid - share;
+    if (s['isSettled'] == true) return;
 
-      return {"name": p['name'], "balance": balance};
-    }).toList();
-  }
+    final from = s['from'];
+    final to = s['to'];
+    final amount = (s['amount'] ?? 0).toDouble();
 
-  /// 🔥 SMART SPLIT
-  List<Map<String, dynamic>> calculateSmartSplit(List people) {
-    List<Map<String, dynamic>> creditors = [];
-    List<Map<String, dynamic>> debtors = [];
-
-    for (var p in people) {
-      double paid = (p['paid'] ?? 0).toDouble();
-      double share = (p['share'] ?? 0).toDouble();
-
-      double balance = paid - share;
-
-      if (balance > 0) {
-        creditors.add({"name": p['name'], "amount": balance});
-      } else if (balance < 0) {
-        debtors.add({"name": p['name'], "amount": -balance});
-      }
+    /// 🔥 DETERMINE TYPE
+    String type = "";
+    if (from == widget.selfName) {
+      type = "expense";
+    } else if (to == widget.selfName) {
+      type = "income";
     }
 
-    List<Map<String, dynamic>> result = [];
+    /// 🔥 ADD TO EXPENSE COLLECTION
+    final userId = widget.data['userId'];
 
-    int i = 0, j = 0;
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('expenses')
+        .add({
+          "title": "Split Settlement",
+          "amount": amount,
+          "type": type,
+          "category": canonicalCategoryName(
+            "split",
+            type == "income"
+                ? TransactionType.income
+                : TransactionType.expense,
+          ),
+          "date": Timestamp.now(),
+        });
 
-    while (i < debtors.length && j < creditors.length) {
-      double debt = debtors[i]['amount'];
-      double credit = creditors[j]['amount'];
+    /// 🔥 UPDATE FIRESTORE
+    settlements[index]['isSettled'] = true;
 
-      double settled = debt < credit ? debt : credit;
+    await widget.data.reference.update({"owe": settlements});
 
-      result.add({
-        "from": debtors[i]['name'],
-        "to": creditors[j]['name'],
-        "amount": settled.round(),
-      });
-
-      debtors[i]['amount'] -= settled;
-      creditors[j]['amount'] -= settled;
-
-      if (debtors[i]['amount'] == 0) i++;
-      if (creditors[j]['amount'] == 0) j++;
-    }
-
-    return result;
-  }
-
-  /// 🔥 YOU SUMMARY
-  Map<String, dynamic> getUserSummary(List settlements) {
-    double owe = 0;
-    double get = 0;
-
-    for (var s in settlements) {
-      if (s['from'] == selfName) {
-        owe += s['amount'];
-      } else if (s['to'] == selfName) {
-        get += s['amount'];
-      }
-    }
-
-    return {"owe": owe, "get": get};
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    final people = (data['people'] ?? []) as List;
-
-    // ignore: unused_local_variable
-    final balances = calculateBalances(people);
-    final settlements = calculateSmartSplit(people);
-    final summary = getUserSummary(settlements);
-
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.85,
@@ -109,199 +92,86 @@ class SplitDetailsSheet extends StatelessWidget {
             color: AppColors.background,
             borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
           ),
-          child: SingleChildScrollView(
+          child: ListView(
             controller: controller,
             padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                /// 🔹 TITLE
-                Text(
-                  data['title'] ?? '',
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
+            children: [
+              Text(
+                widget.data['title'] ?? '',
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
                 ),
+              ),
 
-                const SizedBox(height: 6),
+              const SizedBox(height: 6),
 
-                /// 💰 TOTAL
-                Text(
-                  "Total: ₹${data['amount'] ?? 0}",
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 15,
-                  ),
+              Text(
+                "Total: ₹${widget.data['amount'] ?? 0}",
+                style: const TextStyle(color: AppColors.textSecondary),
+              ),
+
+              const SizedBox(height: 16),
+
+              /// 🔥 SETTLEMENTS WITH CHECKBOX
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.border),
                 ),
+                child: Column(
+                  children: settlements.asMap().entries.map((entry) {
+                    int i = entry.key;
+                    var s = entry.value;
 
-                const SizedBox(height: 16),
+                    bool done = s['isSettled'] == true;
 
-                /// 💥 YOU SUMMARY
-                _youSummary(summary),
-
-                const SizedBox(height: 16),
-
-                /// 👥 PARTICIPANTS
-                _sectionCard(
-                  title: "Participants",
-                  child: Column(
-                    children: people.map((p) {
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.person),
-                        title: Text(
-                          _label(p['name']?.toString()),
-                          style: TextStyle(color: AppColors.textPrimary),
-                        ),
-                        subtitle: Text(
-                          "Share: ₹${p['share']} | Paid: ₹${p['paid']}",
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                /// 💥 SETTLEMENTS
-                _sectionCard(
-                  title: "Who pays whom",
-                  child: settlements.isEmpty
-                      ? const Padding(
-                          padding: EdgeInsets.all(10),
-                          child: Text("All settled 🎉"),
-                        )
-                      : Column(
-                          children: settlements.map((s) {
-                            bool isMe =
-                                s['from'] == selfName || s['to'] == selfName;
-
-                            return Container(
-                              margin: const EdgeInsets.symmetric(vertical: 6),
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: isMe
-                                    ? AppColors.primary.withOpacity(0.08)
-                                    : AppColors.surface,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.border),
+                    return Container(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: done
+                            ? Colors.green.withOpacity(0.1)
+                            : AppColors.surface,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          Checkbox(
+                            value: done,
+                            onChanged: (_) => markComplete(i),
+                          ),
+                          Expanded(
+                            child: Text(
+                              "${_label(s['from'])} pays ${_label(s['to'])}",
+                              style: TextStyle(
+                                decoration: done
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                                color: AppColors.textPrimary,
                               ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.arrow_forward,
-                                    size: 16,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      "${_label(s['from']?.toString())} pays ${_label(s['to']?.toString())}",
-                                      style: const TextStyle(
-                                        color: AppColors.textPrimary,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    "₹${s['amount']}",
-                                    style: const TextStyle(
-                                      color: AppColors.expense,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                        ),
+                            ),
+                          ),
+                          Text(
+                            "₹${s['amount']}",
+                            style: TextStyle(
+                              color: done ? Colors.green : AppColors.expense,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
                 ),
-
-                const SizedBox(height: 40), // 👈 important spacing
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
     );
   }
-
-  /// 🔹 CARD UI
-  Widget _sectionCard({required String title, required Widget child}) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 10),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-Widget _youSummary(Map<String, dynamic> summary) {
-  return Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: AppColors.border),
-    ),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "You owe",
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-            Text(
-              "₹${summary['owe'].toStringAsFixed(0)}",
-              style: const TextStyle(
-                color: Colors.red,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            const Text(
-              "You get",
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-            Text(
-              "₹${summary['get'].toStringAsFixed(0)}",
-              style: const TextStyle(
-                color: Colors.green,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
 }

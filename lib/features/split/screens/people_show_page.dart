@@ -26,6 +26,7 @@ class _PeoplePageState extends State<PeoplePage> {
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
+
     if (uid == null) {
       return const Scaffold(body: Center(child: Text("Not signed in")));
     }
@@ -40,6 +41,7 @@ class _PeoplePageState extends State<PeoplePage> {
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
       ),
+
       body: StreamBuilder<QuerySnapshot>(
         stream: peopleRef.snapshots(),
         builder: (context, snapshot) {
@@ -47,31 +49,41 @@ class _PeoplePageState extends State<PeoplePage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final docs = snapshot.data!.docs.toList();
-          docs.sort((a, b) {
-            final aa = a.data() as Map<String, dynamic>;
-            final bb = b.data() as Map<String, dynamic>;
-            final sa = aa['isSelf'] == true ? 0 : 1;
-            final sb = bb['isSelf'] == true ? 0 : 1;
-            if (sa != sb) return sa.compareTo(sb);
-            return (aa['name'] ?? '').toString().compareTo(
-              (bb['name'] ?? '').toString(),
-            );
-          });
+          final docs = snapshot.data!.docs;
 
           if (docs.isEmpty) {
             return const Center(child: Text("No people added"));
           }
 
+          // Sort: self first
+          final sortedDocs = docs.toList()
+            ..sort((a, b) {
+              final aa = a.data() as Map<String, dynamic>;
+              final bb = b.data() as Map<String, dynamic>;
+
+              final sa = aa['isSelf'] == true ? 0 : 1;
+              final sb = bb['isSelf'] == true ? 0 : 1;
+
+              if (sa != sb) return sa.compareTo(sb);
+
+              return (aa['name'] ?? '').toString().compareTo(
+                (bb['name'] ?? '').toString(),
+              );
+            });
+
           return ListView.builder(
             padding: const EdgeInsets.all(12),
-            itemCount: docs.length,
+            itemCount: sortedDocs.length,
             itemBuilder: (context, index) {
-              final doc = docs[index];
+              final doc = sortedDocs[index];
               final data = doc.data() as Map<String, dynamic>;
-              final isSelf = data['isSelf'] == true;
 
-              return _personCard(context, data['name'] ?? '', isSelf: isSelf);
+              return _personCard(
+                context,
+                doc.id,
+                data['name'] ?? '',
+                isSelf: data['isSelf'] == true,
+              );
             },
           );
         },
@@ -85,12 +97,17 @@ class _PeoplePageState extends State<PeoplePage> {
     );
   }
 
+  // 🔥 PERSON CARD
   Widget _personCard(
     BuildContext context,
+    String docId,
     String name, {
     required bool isSelf,
   }) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
     return InkWell(
+      borderRadius: BorderRadius.circular(18),
       onTap: () {
         Navigator.push(
           context,
@@ -98,53 +115,100 @@ class _PeoplePageState extends State<PeoplePage> {
         );
       },
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        padding: const EdgeInsets.all(14),
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.border.withOpacity(0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           children: [
             CircleAvatar(
-              backgroundColor: AppColors.primary.withOpacity(0.2),
-              child: Text(name.isNotEmpty ? name[0].toUpperCase() : "?"),
+              radius: 26,
+              backgroundColor: isSelf
+                  ? AppColors.primary.withOpacity(0.25)
+                  : AppColors.primary.withOpacity(0.12),
+              child: Text(
+                name.isNotEmpty ? name[0].toUpperCase() : "?",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: isSelf ? AppColors.primary : AppColors.textPrimary,
+                ),
+              ),
             ),
-            const SizedBox(width: 12),
+
+            const SizedBox(width: 16),
+
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     name,
-                    style: const TextStyle(
+                    style: TextStyle(
+                      fontSize: 17,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      color: isSelf ? AppColors.primary : AppColors.textPrimary,
                     ),
                   ),
                   if (isSelf)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        "You · default for your splits",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.primary.withOpacity(0.9),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                    Text(
+                      "You",
+                      style: TextStyle(fontSize: 12, color: AppColors.primary),
                     ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, size: 16),
+
+            if (!isSelf)
+              IconButton(
+                icon: const Icon(Icons.delete, color: Colors.redAccent),
+                onPressed: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Delete Person'),
+                      content: Text('Delete "$name"?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text('Delete'),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  if (confirm == true && uid != null) {
+                    await UserFirestore(uid).people.doc(docId).delete();
+
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text('"$name" deleted')));
+                  }
+                },
+              ),
+
+            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
           ],
         ),
       ),
     );
   }
 
+  // ➕ ADD PERSON DIALOG
   void _showAddPersonDialog(BuildContext context, String uid) {
     final controller = TextEditingController();
 
@@ -154,7 +218,7 @@ class _PeoplePageState extends State<PeoplePage> {
         title: const Text("Add Person"),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(labelText: "Name"),
+          decoration: const InputDecoration(hintText: "Enter name"),
         ),
         actions: [
           TextButton(
@@ -164,9 +228,14 @@ class _PeoplePageState extends State<PeoplePage> {
           ElevatedButton(
             onPressed: () async {
               final name = controller.text.trim();
-              if (name.isNotEmpty) {
-                await UserFirestore(uid).people.add({"name": name});
-              }
+              if (name.isEmpty) return;
+
+              await UserFirestore(uid).people.add({
+                'name': name,
+                'isSelf': false,
+                'createdAt': Timestamp.now(),
+              });
+
               Navigator.pop(ctx);
             },
             child: const Text("Add"),
