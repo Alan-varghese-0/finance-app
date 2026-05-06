@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:finance_app/data/firestore_user.dart';
+import 'package:finance_app/data/repositories/firestore_user.dart';
 import 'package:finance_app/features/split/screens/people_show_page.dart';
 import 'package:finance_app/features/split/split_self_person.dart';
 import 'package:finance_app/features/split/widget/split_details_screens.dart';
@@ -122,13 +122,27 @@ class _SplitTabState extends State<SplitTab>
 
   /// 🔥 OVERVIEW
   Widget _splitOverview(List<QueryDocumentSnapshot> splits) {
-    double total = 0;
+    double youOwe = 0;
+    double youGet = 0;
+
+    final selfName = splitSelfDisplayName(FirebaseAuth.instance.currentUser);
 
     for (var s in splits) {
       final data = s.data() as Map<String, dynamic>? ?? {};
-      total += (data['amount'] ?? 0);
-    }
+      final owes = (data['owe'] ?? []) as List;
 
+      for (var o in owes) {
+        final from = o['from'];
+        final to = o['to'];
+        final amount = (o['amount'] ?? 0).toDouble();
+
+        if (from == selfName) {
+          youOwe += amount;
+        } else if (to == selfName) {
+          youGet += amount;
+        }
+      }
+    }
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -137,20 +151,27 @@ class _SplitTabState extends State<SplitTab>
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const Text(
             "Split Overview",
             style: TextStyle(color: AppColors.textSecondary),
           ),
-          const SizedBox(height: 10),
-          Text(
-            "₹${total.toStringAsFixed(0)}",
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
+          const SizedBox(height: 20),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              Text(
+                "You get: ₹${youGet.toStringAsFixed(0)}",
+                style: const TextStyle(color: Colors.green),
+              ),
+
+              Text(
+                "You owe: ₹${youOwe.toStringAsFixed(0)}",
+                style: const TextStyle(color: AppColors.expense),
+              ),
+            ],
           ),
         ],
       ),
@@ -169,16 +190,47 @@ class _SplitTabState extends State<SplitTab>
     final peopleCount = people.length;
 
     /// 💥 SAFE OWE TEXT
-    String oweText = "";
+    final selfName = splitSelfDisplayName(FirebaseAuth.instance.currentUser);
+
+    List<Widget> oweWidgets = [];
 
     if (owes.isNotEmpty) {
-      oweText = owes
-          .map(
-            (e) => "${e['from'] ?? ''} → ${e['to'] ?? ''} ₹${e['amount'] ?? 0}",
-          )
-          .join(", ");
+      for (var e in owes) {
+        final from = e['from'];
+        final to = e['to'];
+        final amount = e['amount'] ?? 0;
+
+        final isYouPay = from == selfName;
+        final isYouGet = to == selfName;
+
+        Color color;
+        String text;
+
+        if (isYouGet) {
+          text = "You get ₹$amount from $from";
+          color = Colors.green;
+        } else if (isYouPay) {
+          text = "You owe ₹$amount to $to";
+          color = AppColors.expense;
+        } else {
+          text = "$from owes $to ₹$amount";
+          color = AppColors.textSecondary;
+        }
+
+        oweWidgets.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: Text(text, style: TextStyle(fontSize: 13, color: color)),
+          ),
+        );
+      }
     } else {
-      oweText = "No breakdown";
+      oweWidgets.add(
+        const Text(
+          "No breakdown",
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        ),
+      );
     }
 
     return Dismissible(
@@ -228,10 +280,7 @@ class _SplitTabState extends State<SplitTab>
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                oweText,
-                style: const TextStyle(color: Colors.orange, fontSize: 13),
-              ),
+              ...oweWidgets,
               const SizedBox(height: 4),
               Text(
                 "$peopleCount people",
@@ -279,9 +328,7 @@ class _SplitTabState extends State<SplitTab>
               if (name.isNotEmpty) {
                 final uid = FirebaseAuth.instance.currentUser?.uid;
                 if (uid != null) {
-                  await UserFirestore(uid).people.add({
-                    "name": name,
-                  });
+                  await UserFirestore(uid).people.add({"name": name});
                 }
               }
               Navigator.pop(ctx);

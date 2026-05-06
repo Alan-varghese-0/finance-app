@@ -1,4 +1,4 @@
-import 'package:finance_app/data/delete_user_data.dart';
+import 'package:finance_app/data/repositories/delete_user_data.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class AuthService {
@@ -67,10 +67,7 @@ class AuthService {
       throw FirebaseAuthException(code: 'no-user', message: 'Not signed in');
     }
     final uid = user.uid;
-    final cred = EmailAuthProvider.credential(
-      email: email,
-      password: password,
-    );
+    final cred = EmailAuthProvider.credential(email: email, password: password);
     await user.reauthenticateWithCredential(cred);
     await deleteUserFirestoreData(uid);
     await user.delete();

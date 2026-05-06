@@ -1,4 +1,4 @@
-import 'package:finance_app/data/firestore_user.dart';
+import 'package:finance_app/data/repositories/firestore_user.dart';
 import 'package:finance_app/features/expenses/screens/add_expense_screen.dart';
 import 'package:finance_app/features/expenses/screens/expenses_tab.dart';
 import 'package:finance_app/features/split/screens/add_split_screen.dart';
@@ -59,9 +59,7 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final fs = UserFirestore(uid);

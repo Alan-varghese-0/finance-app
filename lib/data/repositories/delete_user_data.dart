@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:finance_app/data/firestore_user.dart';
+import 'package:finance_app/data/repositories/firestore_user.dart';
 
 /// Deletes `users/{uid}` data the app creates (subcollections + user doc).
 Future<void> deleteUserFirestoreData(String uid) async {

@@ -8,6 +8,7 @@ class Expense {
   final DateTime date;
   final TransactionType type;
   final String category;
+  final String source; // 🔥 NEW (expense / subscription / split)
 
   Expense({
     required this.id,
@@ -17,6 +18,7 @@ class Expense {
     required this.date,
     required this.type,
     required this.category,
+    required this.source,
   });
 
   factory Expense.fromMap(String id, Map<String, dynamic> data) {
@@ -30,6 +32,7 @@ class Expense {
           ? TransactionType.income
           : TransactionType.expense,
       category: data['category'] ?? 'General',
+      source: "expense", // ✅ default
     );
   }
 

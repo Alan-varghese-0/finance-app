@@ -1,4 +1,6 @@
-import 'package:finance_app/data/firestore_user.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:finance_app/data/repositories/firestore_user.dart';
+import 'package:finance_app/features/expenses/models/expense.dart';
 import 'package:finance_app/features/split/split_self_person.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -80,7 +82,54 @@ class AnalysisPage extends StatelessWidget {
             ),
           ),
 
-          _section("Smart Insights", const SmartInsights()),
+          _section(
+            "Smart Insights",
+            StreamBuilder(
+              stream: expenseCollection
+                  .orderBy("date", descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Text(
+                      "No data available for insights",
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  );
+                }
+
+                final expenses = snapshot.data!.docs.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+
+                  return Expense(
+                    id: doc.id,
+                    userId: data['userId'] ?? '',
+                    title: data['title'] ?? '',
+                    amount: (data['amount'] ?? 0).toDouble(),
+                    date: (data['date'] as Timestamp).toDate(),
+
+                    // ⚠️ IMPORTANT: never pass null
+                    type: data['type'] == 'income'
+                        ? TransactionType.income
+                        : TransactionType.expense,
+
+                    category: data['category'] ?? 'Other',
+                    source: data['source'] ?? '',
+                  );
+                }).toList();
+
+                return SmartInsights(expenses: expenses);
+              },
+            ),
+          ),
 
           const SliverToBoxAdapter(child: SizedBox(height: 16)),
         ],

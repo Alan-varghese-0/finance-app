@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../../theme/theme.dart';
-import '../../../data/firestore_user.dart';
+import '../../../data/repositories/firestore_user.dart';
 
 class SummaryCards extends StatelessWidget {
   const SummaryCards({super.key});

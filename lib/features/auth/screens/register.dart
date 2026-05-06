@@ -1,6 +1,6 @@
 import 'package:finance_app/features/auth/screens/login.dart';
 import 'package:finance_app/features/auth/services/auth_services.dart';
-import 'package:finance_app/data/firestore_user.dart';
+import 'package:finance_app/data/repositories/firestore_user.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:finance_app/features/navigation/CustomBottomBar.dart';
 import 'package:finance_app/theme/theme.dart';

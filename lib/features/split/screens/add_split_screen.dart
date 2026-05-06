@@ -1,6 +1,6 @@
 // ignore_for_file: unused_local_variable
 
-import 'package:finance_app/data/firestore_user.dart';
+import 'package:finance_app/data/repositories/firestore_user.dart';
 import 'package:finance_app/features/split/split_self_person.dart';
 import 'package:finance_app/theme/theme.dart';
 import 'package:firebase_auth/firebase_auth.dart';

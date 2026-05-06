@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:finance_app/data/models/categories.dart';
 import 'package:finance_app/features/expenses/models/expense.dart';
+import 'package:finance_app/features/expenses/screens/add_expense_screen.dart';
 import 'package:finance_app/features/expenses/widgets/expence_chart.dart';
 import 'package:finance_app/features/expenses/widgets/expense_title.dart';
 import 'package:finance_app/features/goal/widget/priorityGoal.dart';
@@ -107,9 +108,10 @@ class _ExpenseTabState extends State<ExpenseTab>
                         userId: uid!,
                         title: "Split Settlement",
                         amount: amount,
-                        date: createdAt, // ✅ FIXED
+                        date: createdAt,
                         type: type,
                         category: canonicalCategoryName("split", type),
+                        source: "split", // ✅ FIX
                       ),
                     );
                   }
@@ -141,6 +143,7 @@ class _ExpenseTabState extends State<ExpenseTab>
                     date: date,
                     type: TransactionType.expense,
                     category: 'subscription',
+                    source: "subscription", // ✅ FIX
                   );
                 }).toList();
 
@@ -280,7 +283,45 @@ class _ExpenseTabState extends State<ExpenseTab>
           ...data.take(5).map((e) {
             return Column(
               children: [
-                ExpenseTile(expense: e, onDelete: () {}, onEdit: () {}),
+                ExpenseTile(
+                  expense: e,
+                  onDelete: () async {
+                    try {
+                      if (e.source == "expense") {
+                        await widget.expenseCollection.doc(e.id).delete();
+                      } else if (e.source == "subscription") {
+                        await widget.subscriptionCollection.doc(e.id).delete();
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("Cannot delete split here"),
+                          ),
+                        );
+                      }
+                    } catch (err) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text("Delete failed: $err")),
+                      );
+                    }
+                  },
+                  onEdit: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AddExpenseScreen(
+                          id: e.id,
+                          title: e.title,
+                          amount: e.amount,
+                          date: e.date,
+                          type: e.type == TransactionType.income
+                              ? "income"
+                              : "expense",
+                          category: e.category,
+                        ),
+                      ),
+                    );
+                  },
+                ),
                 Divider(color: AppColors.border),
               ],
             );

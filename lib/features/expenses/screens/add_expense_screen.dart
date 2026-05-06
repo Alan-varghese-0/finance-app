@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:finance_app/data/firestore_user.dart';
+import 'package:finance_app/data/repositories/firestore_user.dart';
 import 'package:finance_app/data/models/categories.dart';
 import 'package:finance_app/features/expenses/models/category.dart';
 import 'package:finance_app/features/expenses/models/expense.dart';

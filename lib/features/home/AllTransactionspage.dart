@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:finance_app/theme/theme.dart';
+import 'package:finance_app/features/expenses/screens/add_expense_screen.dart';
 
 class AllTransactionsPage extends StatelessWidget {
   final CollectionReference expenseCollection;
@@ -13,6 +14,33 @@ class AllTransactionsPage extends StatelessWidget {
     required this.subscriptionCollection,
     required this.goalsCollection,
   });
+
+  /// 🔥 DELETE CONFIRM POPUP
+  Future<bool> _confirmDelete(BuildContext context) async {
+    return await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text("Delete Transaction"),
+            content: const Text(
+              "Are you sure you want to delete this transaction?",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text(
+                  "Delete",
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,103 +65,131 @@ class AllTransactionsPage extends StatelessWidget {
                 return _bg(const CircularProgressIndicator());
               }
 
-              return StreamBuilder<QuerySnapshot>(
-                stream: goalsCollection.snapshots(),
-                builder: (context, goalSnap) {
-                  if (!goalSnap.hasData) {
-                    return _bg(const CircularProgressIndicator());
+              List<Map<String, dynamic>> all = [];
+
+              /// 🔥 EXPENSES
+              for (var doc in expenseSnap.data!.docs) {
+                final d = doc.data() as Map<String, dynamic>;
+
+                all.add({
+                  "id": doc.id,
+                  "title": d['title'],
+                  "amount": d['amount'],
+                  "date": (d['date'] as Timestamp).toDate(),
+                  "type": d['type'] ?? 'expense',
+                  "source": "expense",
+                  "category": d['category'],
+                });
+              }
+
+              /// 🔥 SUBSCRIPTIONS
+              for (var doc in subSnap.data!.docs) {
+                final d = doc.data() as Map<String, dynamic>;
+
+                all.add({
+                  "id": doc.id,
+                  "title": d['title'],
+                  "amount": d['amount'],
+                  "date": (d['nextDate'] as Timestamp).toDate(),
+                  "type": "expense",
+                  "source": "subscription",
+                  "category": "subscription",
+                });
+              }
+
+              /// 🔥 SORT
+              all.sort((a, b) => b['date'].compareTo(a['date']));
+
+              if (all.isEmpty) {
+                return _bg(const Text("No transactions found"));
+              }
+
+              return ListView.builder(
+                itemCount: all.length,
+                itemBuilder: (context, i) {
+                  final item = all[i];
+
+                  Color color;
+                  IconData icon;
+
+                  switch (item['type']) {
+                    case "income":
+                      color = AppColors.income;
+                      icon = Icons.arrow_downward;
+                      break;
+                    case "expense":
+                      color = AppColors.expense;
+                      icon = Icons.arrow_upward;
+                      break;
+                    default:
+                      color = Colors.grey;
+                      icon = Icons.circle;
                   }
 
-                  List<Map<String, dynamic>> all = [];
+                  return Dismissible(
+                    key: Key(item['id']),
+                    direction: DismissDirection.endToStart,
 
-                  /// 🔥 EXPENSES
-                  for (var doc in expenseSnap.data!.docs) {
-                    final d = doc.data() as Map<String, dynamic>;
-
-                    final type = d['type'] ?? 'expense'; // ✅ dynamic
-
-                    all.add({
-                      "title": d['title'],
-                      "amount": d['amount'],
-                      "date": (d['date'] as Timestamp).toDate(),
-                      "type": type, // ✅ FIXED
-                    });
-                  }
-
-                  /// 🔥 SUBSCRIPTIONS
-                  for (var doc in subSnap.data!.docs) {
-                    final d = doc.data() as Map<String, dynamic>;
-                    all.add({
-                      "title": d['title'],
-                      "amount": d['amount'],
-                      "date": (d['nextDate'] as Timestamp).toDate(),
-                      "type": "subscription",
-                    });
-                  }
-
-                  /// 🔥 GOAL TRANSACTIONS
-                  for (var goal in goalSnap.data!.docs) {
-                    final goalData = goal.data() as Map<String, dynamic>;
-
-                    final txns = (goalData['transactions'] ?? []) as List;
-
-                    for (var t in txns) {
-                      all.add({
-                        "title": goalData['title'],
-                        "amount": t['amount'],
-                        "date": (t['createdAt'] as Timestamp).toDate(),
-                        "type": "goal",
-                      });
-                    }
-                  }
-
-                  /// 🔥 SORT (LATEST FIRST)
-                  all.sort((a, b) => b['date'].compareTo(a['date']));
-
-                  if (all.isEmpty) {
-                    return _bg(
-                      const Text(
-                        "No transactions found",
-                        style: TextStyle(color: AppColors.textSecondary),
+                    /// 🔴 DELETE BG
+                    background: Container(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
                       ),
-                    );
-                  }
+                      padding: const EdgeInsets.only(right: 20),
+                      alignment: Alignment.centerRight,
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.delete, color: Colors.white),
+                    ),
 
-                  return ListView.builder(
-                    itemCount: all.length,
-                    itemBuilder: (context, i) {
-                      final item = all[i];
+                    /// 🔥 CONFIRM BEFORE DELETE
+                    confirmDismiss: (_) async {
+                      return await _confirmDelete(context);
+                    },
 
-                      Color color;
-                      IconData icon;
+                    /// 🔥 DELETE ACTION
+                    onDismissed: (_) async {
+                      try {
+                        if (item['source'] == "expense") {
+                          await expenseCollection.doc(item['id']).delete();
+                        } else if (item['source'] == "subscription") {
+                          await subscriptionCollection.doc(item['id']).delete();
+                        }
 
-                      switch (item['type']) {
-                        case "income":
-                          color = AppColors.income;
-                          icon = Icons.arrow_downward;
-                          break;
-
-                        case "expense":
-                          color = AppColors.expense;
-                          icon = Icons.arrow_upward;
-                          break;
-
-                        case "subscription":
-                          color = Colors.orange;
-                          icon = Icons.repeat;
-                          break;
-
-                        case "goal":
-                          color = Colors.green;
-                          icon = Icons.flag;
-                          break;
-
-                        default:
-                          color = Colors.grey;
-                          icon = Icons.circle;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Deleted successfully")),
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("Delete failed: $e")),
+                        );
                       }
+                    },
 
-                      return Container(
+                    /// 🔥 EDIT ON TAP
+                    child: GestureDetector(
+                      onTap: () {
+                        if (item['source'] == "expense") {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AddExpenseScreen(
+                                id: item['id'],
+                                title: item['title'],
+                                amount: item['amount'],
+                                date: item['date'],
+                                type: item['type'],
+                                category: item['category'],
+                              ),
+                            ),
+                          );
+                        }
+                      },
+
+                      child: Container(
                         margin: const EdgeInsets.symmetric(
                           horizontal: 12,
                           vertical: 6,
@@ -157,7 +213,6 @@ class AllTransactionsPage extends StatelessWidget {
 
                             const SizedBox(width: 12),
 
-                            /// TEXT
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,7 +224,6 @@ class AllTransactionsPage extends StatelessWidget {
                                       color: AppColors.textPrimary,
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
                                   Text(
                                     item['type'],
                                     style: const TextStyle(
@@ -181,7 +235,6 @@ class AllTransactionsPage extends StatelessWidget {
                               ),
                             ),
 
-                            /// RIGHT
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
@@ -192,20 +245,16 @@ class AllTransactionsPage extends StatelessWidget {
                                     color: color,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
                                 Text(
                                   item['date'].toString().substring(0, 10),
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.textSecondary,
-                                  ),
+                                  style: const TextStyle(fontSize: 11),
                                 ),
                               ],
                             ),
                           ],
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   );
                 },
               );

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:finance_app/theme/theme.dart';
 
-/// 📊 Model for chart
+/// 📊 Model
 class WeeklyChartData {
   final String day;
   final double income;
@@ -17,41 +17,45 @@ class BarChartWidget extends StatelessWidget {
 
   const BarChartWidget({super.key, required this.expenseCollection});
 
-  /// 🔥 Firestore → Weekly grouped data
+  /// 🔥 Weekly Data Stream (FIXED)
   Stream<List<WeeklyChartData>> getWeeklyData() {
-    return expenseCollection.snapshots().map((
-      snapshot,
-    ) {
+    return expenseCollection.snapshots().map((snapshot) {
       List<double> incomeTotals = List.filled(7, 0);
       List<double> expenseTotals = List.filled(7, 0);
 
       final now = DateTime.now();
 
-      /// Start of week (Monday 00:00)
-      final startOfWeek = DateTime(
-        now.year,
-        now.month,
-        now.day,
-      ).subtract(Duration(days: now.weekday - 1));
+      /// ✅ Normalize today
+      final today = DateTime(now.year, now.month, now.day);
 
-      /// End of week
+      /// ✅ Start of week (Monday)
+      final startOfWeek = today.subtract(Duration(days: today.weekday - 1));
+
+      /// ✅ End of week (exclusive)
       final endOfWeek = startOfWeek.add(const Duration(days: 7));
 
       for (var doc in snapshot.docs) {
         final data = doc.data();
 
         final amount = (data['amount'] ?? 0).toDouble();
-        final date = (data['date'] as Timestamp).toDate();
-        final type = data['type']; // "income" or "expense"
 
-        /// ✅ Filter current week only
-        if (date.isBefore(startOfWeek) || date.isAfter(endOfWeek)) continue;
+        /// ✅ Normalize date
+        final rawDate = (data['date'] as Timestamp).toDate();
+        final date = DateTime(rawDate.year, rawDate.month, rawDate.day);
 
-        int index = date.weekday - 1;
+        /// ✅ Normalize type
+        final type = (data['type'] ?? '').toString().toLowerCase().trim();
+
+        /// ✅ Filter only current week
+        if (date.isBefore(startOfWeek) || !date.isBefore(endOfWeek)) {
+          continue;
+        }
+
+        final index = date.weekday - 1;
 
         if (type == 'income') {
           incomeTotals[index] += amount;
-        } else {
+        } else if (type == 'expense') {
           expenseTotals[index] += amount;
         }
       }
@@ -70,7 +74,7 @@ class BarChartWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 220,
+      height: 240,
       child: StreamBuilder<List<WeeklyChartData>>(
         stream: getWeeklyData(),
         builder: (context, snapshot) {
@@ -80,29 +84,58 @@ class BarChartWidget extends StatelessWidget {
 
           final data = snapshot.data!;
 
+          /// 🔥 Check empty
+          final hasData = data.any((e) => e.income > 0 || e.expense > 0);
+
+          if (!hasData) {
+            return const Center(
+              child: Text(
+                "No data this week",
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            );
+          }
+
+          /// 🔥 FIX: Calculate max value for scaling
+          double maxValue = 0;
+          for (var d in data) {
+            if (d.income > maxValue) maxValue = d.income;
+            if (d.expense > maxValue) maxValue = d.expense;
+          }
+
+          if (maxValue == 0) maxValue = 100;
+
+          /// 🔥 Add padding
+          final chartMax = maxValue * 1.2;
+
           return SfCartesianChart(
             tooltipBehavior: TooltipBehavior(enable: true),
 
-            /// 🔥 Legend (Income / Expense)
+            /// 🔥 Legend
             legend: const Legend(
               isVisible: true,
+              position: LegendPosition.bottom,
               textStyle: TextStyle(
                 color: AppColors.textPrimary,
                 fontWeight: FontWeight.w500,
               ),
-              position: LegendPosition.bottom,
             ),
 
+            /// X Axis
             primaryXAxis: CategoryAxis(
-              labelStyle: TextStyle(
+              labelStyle: const TextStyle(
                 color: AppColors.textPrimary,
                 fontWeight: FontWeight.w500,
               ),
               majorGridLines: const MajorGridLines(width: 0),
             ),
 
+            /// 🔥 FIXED Y AXIS
             primaryYAxis: NumericAxis(
-              labelStyle: TextStyle(
+              minimum: 0,
+              maximum: chartMax,
+              interval: chartMax / 5,
+              labelStyle: const TextStyle(
                 color: AppColors.textPrimary,
                 fontWeight: FontWeight.w500,
               ),
@@ -111,29 +144,29 @@ class BarChartWidget extends StatelessWidget {
             ),
 
             series: [
-              /// 💚 Income Bars
+              /// 💚 Income
               ColumnSeries<WeeklyChartData, String>(
                 name: 'Income',
                 dataSource: data,
                 xValueMapper: (d, _) => d.day,
                 yValueMapper: (d, _) => d.income,
-                color: const Color(0xFF22C55E), // green
-                width: 0.50,
+                color: const Color(0xFF22C55E),
+                width: 0.45,
                 spacing: 0.2,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(6),
                 animationDuration: 800,
               ),
 
-              /// ❤️ Expense Bars
+              /// ❤️ Expense
               ColumnSeries<WeeklyChartData, String>(
                 name: 'Expense',
                 dataSource: data,
                 xValueMapper: (d, _) => d.day,
                 yValueMapper: (d, _) => d.expense,
-                color: const Color(0xFFEF4444), // red
-                width: 0.50,
+                color: const Color(0xFFEF4444),
+                width: 0.45,
                 spacing: 0.2,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(6),
                 animationDuration: 800,
               ),
             ],

@@ -123,7 +123,7 @@ class ExpenseTile extends StatelessWidget {
           border: Border.all(color: AppColors.border),
         ),
         child: ListTile(
-          onTap: onEdit,
+          onLongPress: onEdit,
 
           /// 🔥 CATEGORY ICON
           leading: Container(
