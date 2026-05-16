@@ -37,7 +37,7 @@ class _ProfilePageState extends State<ProfilePage>
         foregroundColor: AppColors.textPrimary,
       ),
       body: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
+        stream: FirebaseAuth.instance.userChanges(),
         builder: (context, snapshot) {
           final user = snapshot.data;
           if (user == null) {

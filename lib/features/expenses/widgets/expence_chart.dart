@@ -9,7 +9,14 @@ enum ChartFilter { all, expense, income }
 class ExpenseChart extends StatefulWidget {
   final List<Expense> expenses;
 
-  const ExpenseChart({super.key, required this.expenses});
+  /// 🔥 CURRENT BALANCE
+  final double currentBalance;
+
+  const ExpenseChart({
+    super.key,
+    required this.expenses,
+    required this.currentBalance,
+  });
 
   @override
   State<ExpenseChart> createState() => _ExpenseChartState();
@@ -24,10 +31,8 @@ class _ExpenseChartState extends State<ExpenseChart> {
 
     for (var e in widget.expenses) {
       final bucket = canonicalCategoryName(e.category, e.type);
-      data[bucket] ??= {
-        TransactionType.expense: 0,
-        TransactionType.income: 0,
-      };
+
+      data[bucket] ??= {TransactionType.expense: 0, TransactionType.income: 0};
 
       data[bucket]![e.type] = (data[bucket]![e.type] ?? 0) + e.amount;
     }
@@ -38,7 +43,11 @@ class _ExpenseChartState extends State<ExpenseChart> {
   /// 🔥 FIX CATEGORY NAME
   String normalizeCategory(String name) {
     final n = name.toLowerCase().trim();
-    if (n.contains('subscrib')) return 'Subscription';
+
+    if (n.contains('subscrib')) {
+      return 'Subscription';
+    }
+
     return name;
   }
 
@@ -57,6 +66,23 @@ class _ExpenseChartState extends State<ExpenseChart> {
     );
   }
 
+  /// 🔥 FORMAT MONEY
+  String formatAmount(double amount) {
+    if (amount >= 10000000) {
+      return "₹${(amount / 10000000).toStringAsFixed(1)}Cr";
+    }
+
+    if (amount >= 100000) {
+      return "₹${(amount / 100000).toStringAsFixed(1)}L";
+    }
+
+    if (amount >= 1000) {
+      return "₹${(amount / 1000).toStringAsFixed(1)}K";
+    }
+
+    return "₹${amount.toStringAsFixed(0)}";
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = getCategoryTotals();
@@ -70,21 +96,23 @@ class _ExpenseChartState extends State<ExpenseChart> {
 
     /// 🔥 PREPARE CHART DATA
     final chartData = <_ChartData>[];
-    double total = 0;
 
     data.forEach((category, typeMap) {
       typeMap.forEach((type, amount) {
         if (amount <= 0) return;
 
         if (selectedFilter == ChartFilter.expense &&
-            type != TransactionType.expense)
+            type != TransactionType.expense) {
           return;
+        }
 
         if (selectedFilter == ChartFilter.income &&
-            type != TransactionType.income)
+            type != TransactionType.income) {
           return;
+        }
 
         final cat = getCategory(category);
+
         final baseColor = cat.color;
 
         final color = type == TransactionType.expense
@@ -98,17 +126,11 @@ class _ExpenseChartState extends State<ExpenseChart> {
             color: color,
           ),
         );
-
-        total += amount;
       });
     });
 
-    if (chartData.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(20),
-        child: Text("No data for selected filter"),
-      );
-    }
+    /// 🔥 CURRENT BALANCE
+    final total = widget.currentBalance;
 
     return Container(
       margin: const EdgeInsets.all(12),
@@ -149,65 +171,136 @@ class _ExpenseChartState extends State<ExpenseChart> {
 
           const SizedBox(height: 20),
 
-          /// 🔥 FIXED CHART + SCROLLABLE LEGEND
+          /// 🔥 CHART
           SizedBox(
             height: 300,
             child: Column(
               children: [
-                /// 🥧 CHART (FIXED AREA)
+                /// 🥧 CHART
                 Expanded(
-                  child: SfCircularChart(
-                    tooltipBehavior: TooltipBehavior(enable: true),
-
-                    /// ❌ Disable default legend
-                    legend: const Legend(isVisible: false),
-
-                    /// 🔥 Center Total
-                    annotations: [
-                      CircularChartAnnotation(
-                        widget: Text(
-                          "₹${total.toStringAsFixed(0)}",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                  child: chartData.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(
+                                Icons.pie_chart_outline,
+                                color: Colors.white54,
+                                size: 50,
+                              ),
+                              SizedBox(height: 12),
+                              Text(
+                                "No data for selected filter",
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
                           ),
+                        )
+                      : SfCircularChart(
+                          tooltipBehavior: TooltipBehavior(enable: true),
+
+                          legend: const Legend(isVisible: false),
+
+                          /// 🔥 CENTER BALANCE
+                          annotations: [
+                            CircularChartAnnotation(
+                              widget: GestureDetector(
+                                onTap: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (_) => AlertDialog(
+                                      backgroundColor: Colors.black,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      title: const Text(
+                                        "Current Balance",
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                      content: Text(
+                                        "₹${total.toStringAsFixed(2)}",
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text(
+                                      "Balance",
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      formatAmount(total),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+
+                          series: <CircularSeries>[
+                            DoughnutSeries<_ChartData, String>(
+                              dataSource: chartData,
+
+                              xValueMapper: (data, _) => data.name,
+
+                              yValueMapper: (data, _) => data.amount,
+
+                              pointColorMapper: (data, _) => data.color,
+
+                              dataLabelMapper: (data, _) {
+                                double visibleTotal = 0;
+
+                                for (var item in chartData) {
+                                  visibleTotal += item.amount;
+                                }
+
+                                final percent =
+                                    (data.amount / visibleTotal) * 100;
+
+                                return "${percent.toStringAsFixed(0)}%";
+                              },
+
+                              dataLabelSettings: const DataLabelSettings(
+                                isVisible: true,
+                                textStyle: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+
+                              animationDuration: 1200,
+                              innerRadius: '55%',
+                              selectionBehavior: SelectionBehavior(
+                                enable: true,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-
-                    series: <CircularSeries>[
-                      DoughnutSeries<_ChartData, String>(
-                        dataSource: chartData,
-                        xValueMapper: (data, _) => data.name,
-                        yValueMapper: (data, _) => data.amount,
-                        pointColorMapper: (data, _) => data.color,
-
-                        dataLabelMapper: (data, _) {
-                          final percent = (data.amount / total) * 100;
-                          return "${percent.toStringAsFixed(0)}%";
-                        },
-
-                        dataLabelSettings: const DataLabelSettings(
-                          isVisible: true,
-                          textStyle: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-
-                        animationDuration: 1200,
-                        innerRadius: '55%',
-                        selectionBehavior: SelectionBehavior(enable: true),
-                      ),
-                    ],
-                  ),
                 ),
 
                 const SizedBox(height: 10),
 
-                /// 📜 SCROLLABLE LEGEND (FIXED HEIGHT)
+                /// 📜 LEGEND
                 Row(
                   children: [
                     const Icon(
@@ -237,7 +330,9 @@ class _ExpenseChartState extends State<ExpenseChart> {
                                     shape: BoxShape.circle,
                                   ),
                                 ),
+
                                 const SizedBox(width: 6),
+
                                 Text(
                                   item.name,
                                   style: const TextStyle(color: Colors.white70),

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:finance_app/data/models/categories.dart';
+import 'package:finance_app/data/repositories/firestore_user.dart';
 import 'package:finance_app/features/expenses/models/expense.dart';
 import 'package:finance_app/features/expenses/screens/add_expense_screen.dart';
 import 'package:finance_app/features/expenses/widgets/expence_chart.dart';
@@ -164,7 +165,28 @@ class _ExpenseTabState extends State<ExpenseTab>
                     slivers: [
                       /// 📊 CHART
                       SliverToBoxAdapter(
-                        child: ExpenseChart(expenses: allData),
+                        child: FutureBuilder<DocumentSnapshot>(
+                          future: UserFirestore(
+                            FirebaseAuth.instance.currentUser!.uid,
+                          ).userDoc.get(),
+                          builder: (context, snapshot) {
+                            double balance = 0;
+
+                            if (snapshot.hasData &&
+                                snapshot.data!.data() != null) {
+                              final data =
+                                  snapshot.data!.data() as Map<String, dynamic>;
+
+                              balance = ((data['balance'] ?? 0.0) as num)
+                                  .toDouble();
+                            }
+
+                            return ExpenseChart(
+                              expenses: allData,
+                              currentBalance: balance,
+                            );
+                          },
+                        ),
                       ),
 
                       const SliverToBoxAdapter(child: SizedBox(height: 12)),
