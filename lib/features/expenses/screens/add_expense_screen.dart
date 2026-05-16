@@ -6,6 +6,9 @@ import 'package:finance_app/features/expenses/models/expense.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 
 import 'package:finance_app/theme/theme.dart';
 
@@ -16,6 +19,7 @@ class AddExpenseScreen extends StatefulWidget {
   final DateTime? date;
   final String? type;
   final String? category;
+  final String? location;
 
   const AddExpenseScreen({
     super.key,
@@ -25,6 +29,7 @@ class AddExpenseScreen extends StatefulWidget {
     this.date,
     this.type,
     this.category,
+    this.location,
   });
 
   @override
@@ -38,6 +43,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   DateTime selectedDate = DateTime.now();
   String selectedType = 'expense';
   CategoryModel? selectedCategory;
+
+  // Location variables
+  GoogleMapController? mapController;
+  LatLng selectedLocation = const LatLng(
+    20.5937,
+    78.9629,
+  ); // Default: India center
+  String selectedLocationAddress = 'Tap map to select location';
+  Set<Marker> markers = {};
 
   @override
   void initState() {
@@ -62,12 +76,16 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         orElse: () => categories.first,
       );
     }
+
+    /// Initialize location
+    _getCurrentLocation();
   }
 
   @override
   void dispose() {
     titleController.dispose();
     amountController.dispose();
+    mapController?.dispose();
     super.dispose();
   }
 
@@ -104,6 +122,77 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
   }
 
+  Future<void> _getCurrentLocation() async {
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        setState(() {
+          selectedLocationAddress = 'Location permission denied';
+        });
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      setState(() {
+        selectedLocation = LatLng(position.latitude, position.longitude);
+      });
+
+      await _getAddressFromCoordinates(selectedLocation);
+    } catch (e) {
+      print('Error getting location: $e');
+    }
+  }
+
+  Future<void> _getAddressFromCoordinates(LatLng latLng) async {
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        latLng.latitude,
+        latLng.longitude,
+      );
+
+      if (placemarks.isNotEmpty) {
+        final place = placemarks[0];
+        final address =
+            '${place.street}, ${place.locality}, ${place.postalCode}';
+        setState(() {
+          selectedLocationAddress = address;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        selectedLocationAddress =
+            '${selectedLocation.latitude.toStringAsFixed(4)}, ${selectedLocation.longitude.toStringAsFixed(4)}';
+      });
+    }
+  }
+
+  void _openLocationPicker() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LocationPickerScreen(
+          initialLocation: selectedLocation,
+          onLocationSelected: _updateSelectedLocation,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateSelectedLocation(LatLng newLocation) async {
+    setState(() {
+      selectedLocation = newLocation;
+    });
+    await _getAddressFromCoordinates(newLocation);
+  }
+
   Future<void> pickDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -128,10 +217,20 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
+
     if (uid == null) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Not signed in")));
+      return;
+    }
+
+    final amount = double.tryParse(amountController.text.trim());
+
+    if (amount == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Enter valid amount")));
       return;
     }
 
@@ -140,12 +239,35 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     final payload = <String, dynamic>{
       'userId': uid,
       'title': titleController.text.trim(),
-      'amount': double.parse(amountController.text),
+      'amount': amount,
       'date': Timestamp.fromDate(selectedDate),
       'type': selectedType,
       'category': selectedCategory!.name,
+      'location':
+          '${selectedLocation.latitude.toStringAsFixed(6)},${selectedLocation.longitude.toStringAsFixed(6)}',
+      'locationAddress': selectedLocationAddress,
     };
 
+    /// USER DOC
+    final userRef = UserFirestore(uid).userDoc;
+
+    /// CURRENT USER DATA
+    final userSnap = await userRef.get();
+
+    double currentBalance = ((userSnap.data()?['balance'] ?? 0.0) as num)
+        .toDouble();
+
+    /// UPDATE BALANCE
+    if (selectedType == 'expense') {
+      currentBalance -= amount;
+    } else {
+      currentBalance += amount;
+    }
+
+    /// SAVE UPDATED BALANCE
+    await userRef.set({'balance': currentBalance}, SetOptions(merge: true));
+
+    /// SAVE TRANSACTION
     if (widget.id == null) {
       await collection.doc().set(payload);
     } else {
@@ -187,6 +309,67 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               decoration: const InputDecoration(
                 labelText: "Amount",
                 prefixIcon: Icon(Icons.currency_rupee),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            /// LOCATION PICKER
+            InkWell(
+              onTap: _openLocationPicker,
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.location_on,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Location',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                selectedLocationAddress,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${selectedLocation.latitude.toStringAsFixed(4)}, ${selectedLocation.longitude.toStringAsFixed(4)}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
 
@@ -404,5 +587,144 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         ),
       ),
     );
+  }
+}
+
+class LocationPickerScreen extends StatefulWidget {
+  final LatLng initialLocation;
+  final Function(LatLng) onLocationSelected;
+
+  const LocationPickerScreen({
+    super.key,
+    required this.initialLocation,
+    required this.onLocationSelected,
+  });
+
+  @override
+  State<LocationPickerScreen> createState() => _LocationPickerScreenState();
+}
+
+class _LocationPickerScreenState extends State<LocationPickerScreen> {
+  late GoogleMapController mapController;
+  late LatLng selectedLocation;
+  late Set<Marker> markers;
+
+  @override
+  void initState() {
+    super.initState();
+    selectedLocation = widget.initialLocation;
+    markers = {
+      Marker(
+        markerId: const MarkerId('selected_location'),
+        position: selectedLocation,
+        infoWindow: const InfoWindow(title: 'Selected Location'),
+      ),
+    };
+  }
+
+  void _onMapTapped(LatLng position) {
+    setState(() {
+      selectedLocation = position;
+      markers = {
+        Marker(
+          markerId: const MarkerId('selected_location'),
+          position: selectedLocation,
+          infoWindow: const InfoWindow(title: 'Selected Location'),
+        ),
+      };
+    });
+  }
+
+  void _confirmLocation() {
+    widget.onLocationSelected(selectedLocation);
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Select Location'), centerTitle: true),
+      body: Stack(
+        children: [
+          GoogleMap(
+            onMapCreated: (controller) {
+              mapController = controller;
+            },
+            initialCameraPosition: CameraPosition(
+              target: selectedLocation,
+              zoom: 15,
+            ),
+            onTap: _onMapTapped,
+            markers: markers,
+            myLocationEnabled: true,
+            myLocationButtonEnabled: true,
+            zoomControlsEnabled: true,
+          ),
+          Positioned(
+            bottom: 20,
+            left: 20,
+            right: 20,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Selected Coordinates:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${selectedLocation.latitude.toStringAsFixed(6)}, ${selectedLocation.longitude.toStringAsFixed(6)}',
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.expense,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: _confirmLocation,
+                    child: const Text(
+                      'Confirm Location',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: AppColors.background,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    mapController.dispose();
+    super.dispose();
   }
 }

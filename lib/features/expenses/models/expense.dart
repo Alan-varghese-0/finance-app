@@ -9,6 +9,7 @@ class Expense {
   final TransactionType type;
   final String category;
   final String source; // 🔥 NEW (expense / subscription / split)
+  final String location; // 📍 NEW (location where expense occurred)
 
   Expense({
     required this.id,
@@ -19,6 +20,7 @@ class Expense {
     required this.type,
     required this.category,
     required this.source,
+    this.location = 'Not specified',
   });
 
   factory Expense.fromMap(String id, Map<String, dynamic> data) {
@@ -33,6 +35,7 @@ class Expense {
           : TransactionType.expense,
       category: data['category'] ?? 'General',
       source: "expense", // ✅ default
+      location: data['location'] ?? data['locationAddress'] ?? 'Not specified',
     );
   }
 
@@ -44,6 +47,7 @@ class Expense {
       'date': date,
       'type': type == TransactionType.income ? 'income' : 'expense',
       'category': category,
+      'location': location,
     };
   }
 }

@@ -9,18 +9,29 @@ class SummaryCards extends StatelessWidget {
 
   Future<Map<String, dynamic>> _fetchSummary() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return {'balance': 0.0, 'expense': 0.0, 'income': 0.0};
 
+    if (uid == null) {
+      return {'balance': 0.0, 'expense': 0.0, 'income': 0.0};
+    }
+
+    /// USER DOC
     final userDoc = await UserFirestore(uid).userDoc.get();
-    final initialAmount = (userDoc.data()?['balance'] ?? 0.0) as num;
 
+    final balance = ((userDoc.data()?['balance'] ?? 0.0) as num).toDouble();
+
+    /// EXPENSES
     final expensesSnap = await UserFirestore(uid).expenses.get();
+
     double totalExpense = 0.0;
     double totalIncome = 0.0;
+
     for (var doc in expensesSnap.docs) {
       final data = doc.data();
-      final amount = (data['amount'] ?? 0.0) as num;
+
+      final amount = ((data['amount'] ?? 0.0) as num).toDouble();
+
       final type = data['type'] ?? 'expense';
+
       if (type == 'expense') {
         totalExpense += amount;
       } else if (type == 'income') {
@@ -28,7 +39,6 @@ class SummaryCards extends StatelessWidget {
       }
     }
 
-    final balance = initialAmount + totalIncome - totalExpense;
     return {'balance': balance, 'expense': totalExpense, 'income': totalIncome};
   }
 
@@ -103,7 +113,7 @@ class SummaryCards extends StatelessWidget {
             Text(
               value,
               style: const TextStyle(
-                fontSize: 18,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: Colors.white, // ✅ crisp on gradient
               ),

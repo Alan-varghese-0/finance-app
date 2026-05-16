@@ -1,4 +1,5 @@
 import 'package:finance_app/app_locale.dart';
+import 'package:finance_app/features/auth/screens/login.dart';
 import 'package:finance_app/features/auth/services/auth_services.dart';
 import 'package:finance_app/theme/theme.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -270,7 +271,10 @@ class _ProfilePageState extends State<ProfilePage>
               _card(
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.delete_forever, color: Colors.red),
+                    leading: const Icon(
+                      Icons.delete_forever,
+                      color: Colors.red,
+                    ),
                     title: const Text(
                       'Delete account',
                       style: TextStyle(
@@ -395,9 +399,9 @@ class _ProfilePageState extends State<ProfilePage>
     try {
       await _authService.updateDisplayName(controller.text);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Name updated')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Name updated')));
       }
     } on FirebaseAuthException catch (e) {
       if (context.mounted) {
@@ -428,7 +432,9 @@ class _ProfilePageState extends State<ProfilePage>
               TextField(
                 controller: current,
                 obscureText: true,
-                decoration: const InputDecoration(labelText: 'Current password'),
+                decoration: const InputDecoration(
+                  labelText: 'Current password',
+                ),
                 style: const TextStyle(color: AppColors.textPrimary),
               ),
               const SizedBox(height: 12),
@@ -486,9 +492,9 @@ class _ProfilePageState extends State<ProfilePage>
         newPassword: next.text,
       );
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password updated')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Password updated')));
       }
     } on FirebaseAuthException catch (e) {
       if (context.mounted) {
@@ -627,9 +633,9 @@ class _ProfilePageState extends State<ProfilePage>
     final uri = Uri.parse(_privacyPolicyUrl);
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!launched && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open link')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not open link')));
     }
   }
 
@@ -661,6 +667,12 @@ class _ProfilePageState extends State<ProfilePage>
 
     if (go == true) {
       await _authService.logout();
+      if (context.mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginPage()),
+          (route) => false,
+        );
+      }
     }
   }
 
@@ -717,9 +729,7 @@ class _ProfilePageState extends State<ProfilePage>
             TextField(
               controller: passwordController,
               obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Password',
-              ),
+              decoration: const InputDecoration(labelText: 'Password'),
               style: const TextStyle(color: AppColors.textPrimary),
             ),
           ],
@@ -741,18 +751,16 @@ class _ProfilePageState extends State<ProfilePage>
     if (step2 != true || !context.mounted) return;
 
     if (passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password is required')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Password is required')));
       return;
     }
 
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(),
-      ),
+      builder: (_) => const Center(child: CircularProgressIndicator()),
     );
 
     try {
@@ -764,17 +772,15 @@ class _ProfilePageState extends State<ProfilePage>
       if (context.mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.message ?? 'Could not delete account'),
-          ),
+          SnackBar(content: Text(e.message ?? 'Could not delete account')),
         );
       }
     } catch (e) {
       if (context.mounted) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
