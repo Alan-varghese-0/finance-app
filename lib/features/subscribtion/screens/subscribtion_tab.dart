@@ -239,6 +239,9 @@ class _SubscriptionTabState extends State<SubscriptionTab>
         padding: const EdgeInsets.only(right: 20),
         child: const Icon(Icons.delete, color: Colors.white),
       ),
+      confirmDismiss: (direction) async {
+        return await _confirmDelete(context);
+      },
       onDismissed: (_) {
         widget.subscriptionCollection.doc(id).delete();
       },
@@ -319,6 +322,32 @@ class _SubscriptionTabState extends State<SubscriptionTab>
         ),
       ),
     );
+  }
+
+  Future<bool> _confirmDelete(BuildContext context) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Delete subscription'),
+            content: const Text(
+              'Are you sure you want to delete this subscription?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   Widget _bg(Widget child) {

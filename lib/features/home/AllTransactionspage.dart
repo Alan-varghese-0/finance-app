@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:finance_app/features/expenses/screens/expense_detail_page.dart';
 import 'package:finance_app/theme/theme.dart';
-import 'package:finance_app/features/expenses/screens/add_expense_screen.dart';
 
 class AllTransactionsPage extends StatelessWidget {
   final CollectionReference expenseCollection;
@@ -79,6 +79,7 @@ class AllTransactionsPage extends StatelessWidget {
                   "type": d['type'] ?? 'expense',
                   "source": "expense",
                   "category": d['category'],
+                  "receiptUrl": d['receiptUrl'],
                 });
               }
 
@@ -94,6 +95,7 @@ class AllTransactionsPage extends StatelessWidget {
                   "type": "expense",
                   "source": "subscription",
                   "category": "subscription",
+                  "receiptUrl": d['receiptUrl'],
                 });
               }
 
@@ -169,24 +171,23 @@ class AllTransactionsPage extends StatelessWidget {
                       }
                     },
 
-                    /// 🔥 EDIT ON TAP
-                    child: GestureDetector(
+                    child: InkWell(
                       onTap: () {
-                        if (item['source'] == "expense") {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => AddExpenseScreen(
-                                id: item['id'],
-                                title: item['title'],
-                                amount: item['amount'],
-                                date: item['date'],
-                                type: item['type'],
-                                category: item['category'],
-                              ),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ExpenseDetailPage(
+                              id: item['id'],
+                              title: item['title'],
+                              amount: item['amount'],
+                              date: item['date'],
+                              type: item['type'],
+                              category: item['category'],
+                              source: item['source'],
+                              receiptUrl: item['receiptUrl'],
                             ),
-                          );
-                        }
+                          ),
+                        );
                       },
 
                       child: Container(

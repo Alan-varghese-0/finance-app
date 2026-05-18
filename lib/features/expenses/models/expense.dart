@@ -10,6 +10,7 @@ class Expense {
   final String category;
   final String source; // 🔥 NEW (expense / subscription / split)
   final String location; // 📍 NEW (location where expense occurred)
+  final String? receiptUrl; // 📸 Receipt/image URL
 
   Expense({
     required this.id,
@@ -21,6 +22,7 @@ class Expense {
     required this.category,
     required this.source,
     this.location = 'Not specified',
+    this.receiptUrl,
   });
 
   factory Expense.fromMap(String id, Map<String, dynamic> data) {
@@ -36,6 +38,7 @@ class Expense {
       category: data['category'] ?? 'General',
       source: "expense", // ✅ default
       location: data['location'] ?? data['locationAddress'] ?? 'Not specified',
+      receiptUrl: data['receiptUrl'],
     );
   }
 

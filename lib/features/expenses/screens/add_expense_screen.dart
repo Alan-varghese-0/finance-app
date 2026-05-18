@@ -1,17 +1,21 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:finance_app/data/models/categories.dart';
 import 'package:finance_app/data/repositories/firestore_user.dart';
 import 'package:finance_app/features/expenses/models/category.dart';
 import 'package:finance_app/features/expenses/models/expense.dart';
 import 'package:finance_app/features/expenses/widgets/map.dart';
+import 'package:finance_app/services/cloudinary_service.dart';
 import 'package:finance_app/theme/theme.dart';
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:intl/intl.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   final String? id;
@@ -21,6 +25,7 @@ class AddExpenseScreen extends StatefulWidget {
   final String? type;
   final String? category;
   final String? location;
+  final String? receiptUrl;
 
   const AddExpenseScreen({
     super.key,
@@ -31,6 +36,7 @@ class AddExpenseScreen extends StatefulWidget {
     this.type,
     this.category,
     this.location,
+    this.receiptUrl,
   });
 
   @override
@@ -42,13 +48,24 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   late TextEditingController amountController;
 
   DateTime selectedDate = DateTime.now();
+
   String selectedType = 'expense';
+
   CategoryModel? selectedCategory;
 
-  /// LOCATION
-  LatLng selectedLocation = LatLng(0, 0);
+  bool isLoadingLocation = true;
 
-  String selectedLocationAddress = 'Tap to choose location';
+  /// LOCATION
+  LatLng selectedLocation = const LatLng(0, 0);
+
+  String selectedLocationAddress = "Fetching location...";
+
+  /// RECEIPT
+  File? selectedReceiptFile;
+
+  String? uploadedReceiptUrl;
+
+  bool isUploadingReceipt = false;
 
   @override
   void initState() {
@@ -64,7 +81,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
     selectedType = widget.type ?? 'expense';
 
-    /// RESTORE CATEGORY
+    uploadedReceiptUrl = widget.receiptUrl;
+
     if (widget.category != null) {
       final t = selectedType == 'income'
           ? TransactionType.income
@@ -78,13 +96,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       );
     }
 
-    _getCurrentLocation();
+    _initializeLocation();
   }
 
   @override
   void dispose() {
     titleController.dispose();
     amountController.dispose();
+
     super.dispose();
   }
 
@@ -94,8 +113,21 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         .toList();
   }
 
-  Future<void> _getCurrentLocation() async {
+  /// LOCATION
+  Future<void> _initializeLocation() async {
     try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+      if (!serviceEnabled) {
+        setState(() {
+          selectedLocationAddress = "Location service disabled";
+
+          isLoadingLocation = false;
+        });
+
+        return;
+      }
+
       LocationPermission permission = await Geolocator.checkPermission();
 
       if (permission == LocationPermission.denied) {
@@ -103,20 +135,34 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       }
 
       if (permission == LocationPermission.deniedForever) {
+        setState(() {
+          selectedLocationAddress = "Location permission denied";
+
+          isLoadingLocation = false;
+        });
+
         return;
       }
 
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        desiredAccuracy: LocationAccuracy.best,
       );
 
-      setState(() {
-        selectedLocation = LatLng(position.latitude, position.longitude);
-      });
+      selectedLocation = LatLng(position.latitude, position.longitude);
 
       await _getAddressFromCoordinates(selectedLocation);
+
+      setState(() {
+        isLoadingLocation = false;
+      });
     } catch (e) {
       debugPrint(e.toString());
+
+      setState(() {
+        selectedLocationAddress = "Unable to fetch location";
+
+        isLoadingLocation = false;
+      });
     }
   }
 
@@ -130,7 +176,20 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       if (placemarks.isNotEmpty) {
         final place = placemarks.first;
 
-        final address = '${place.street}, ${place.locality}';
+        String address = "";
+
+        if (place.street != null && place.street!.isNotEmpty) {
+          address += "${place.street}, ";
+        }
+
+        if (place.locality != null && place.locality!.isNotEmpty) {
+          address += "${place.locality}, ";
+        }
+
+        if (place.administrativeArea != null &&
+            place.administrativeArea!.isNotEmpty) {
+          address += place.administrativeArea!;
+        }
 
         setState(() {
           selectedLocationAddress = address;
@@ -139,12 +198,13 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     } catch (e) {
       setState(() {
         selectedLocationAddress =
-            '${latLng.latitude.toStringAsFixed(4)}, '
-            '${latLng.longitude.toStringAsFixed(4)}';
+            "${latLng.latitude.toStringAsFixed(4)}, "
+            "${latLng.longitude.toStringAsFixed(4)}";
       });
     }
   }
 
+  /// DATE
   Future<void> pickDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -160,6 +220,75 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
   }
 
+  /// IMAGE PICKER
+  Future<void> pickImageFromGallery() async {
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 70,
+      );
+
+      if (picked == null) return;
+
+      setState(() {
+        selectedReceiptFile = File(picked.path);
+      });
+
+      await uploadReceipt();
+    } catch (e) {
+      print(e);
+    }
+  }
+
+  /// FILE PICKER
+  Future<void> pickDocumentFile() async {
+    try {
+      final result = await FilePicker.pickFiles();
+
+      if (result == null) return;
+
+      final path = result.files.single.path;
+
+      if (path == null) return;
+
+      setState(() {
+        selectedReceiptFile = File(path);
+      });
+
+      await uploadReceipt();
+    } catch (e) {
+      print(e);
+    }
+  }
+
+  /// CLOUDINARY UPLOAD
+  Future<void> uploadReceipt() async {
+    if (selectedReceiptFile == null) return;
+
+    try {
+      setState(() {
+        isUploadingReceipt = true;
+      });
+
+      final url = await CloudinaryService.uploadImage(selectedReceiptFile!);
+
+      if (url != null) {
+        uploadedReceiptUrl = url;
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Receipt uploaded")));
+      }
+    } catch (e) {
+      print(e);
+    } finally {
+      setState(() {
+        isUploadingReceipt = false;
+      });
+    }
+  }
+
+  /// SAVE
   Future<void> saveExpense() async {
     if (titleController.text.isEmpty ||
         amountController.text.isEmpty ||
@@ -167,6 +296,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Fill all fields")));
+
       return;
     }
 
@@ -176,6 +306,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Not signed in")));
+
       return;
     }
 
@@ -185,6 +316,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Enter valid amount")));
+
       return;
     }
 
@@ -198,15 +330,13 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       'type': selectedType,
       'category': selectedCategory!.name,
 
-      /// LOCATION
-      'location':
-          '${selectedLocation.latitude},'
-          '${selectedLocation.longitude}',
+      'location': '${selectedLocation.latitude},${selectedLocation.longitude}',
 
       'locationAddress': selectedLocationAddress,
+
+      'receiptUrl': uploadedReceiptUrl,
     };
 
-    /// USER DOC
     final userRef = UserFirestore(uid).userDoc;
 
     final userSnap = await userRef.get();
@@ -214,17 +344,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     double currentBalance = ((userSnap.data()?['balance'] ?? 0.0) as num)
         .toDouble();
 
-    /// UPDATE BALANCE
     if (selectedType == 'expense') {
       currentBalance -= amount;
     } else {
       currentBalance += amount;
     }
 
-    /// SAVE BALANCE
     await userRef.set({'balance': currentBalance}, SetOptions(merge: true));
 
-    /// SAVE TRANSACTION
     if (widget.id == null) {
       await collection.doc().set(payload);
     } else {
@@ -236,28 +363,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
   }
 
+  /// MAP PICKER
   Future<void> _openLocationPicker() async {
-    /// GET CURRENT LOCATION BEFORE OPENING MAP
-    try {
-      LocationPermission permission = await Geolocator.checkPermission();
-
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        return;
-      }
-
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      selectedLocation = LatLng(position.latitude, position.longitude);
-    } catch (e) {
-      debugPrint(e.toString());
-    }
-
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -292,8 +399,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             TextField(
               controller: titleController,
 
-              style: const TextStyle(color: AppColors.textPrimary),
-
               decoration: const InputDecoration(
                 labelText: "Title",
                 prefixIcon: Icon(Icons.title),
@@ -305,10 +410,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             /// AMOUNT
             TextField(
               controller: amountController,
-
               keyboardType: TextInputType.number,
-
-              style: const TextStyle(color: AppColors.textPrimary),
 
               decoration: const InputDecoration(
                 labelText: "Amount",
@@ -320,53 +422,39 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
             /// LOCATION
             InkWell(
-              onTap: _openLocationPicker,
+              onTap: isLoadingLocation ? null : _openLocationPicker,
 
               child: Container(
                 padding: const EdgeInsets.all(14),
 
                 decoration: BoxDecoration(
                   color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
+
                   border: Border.all(color: AppColors.border),
                 ),
 
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.location_on,
-                      color: AppColors.textSecondary,
-                    ),
+                    const Icon(Icons.location_on),
 
                     const SizedBox(width: 12),
 
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-
-                        children: [
-                          const Text(
-                            'Location',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-
-                          const SizedBox(height: 4),
-
-                          Text(
-                            selectedLocationAddress,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        selectedLocationAddress,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+
+                    if (isLoadingLocation)
+                      const SizedBox(
+                        height: 18,
+                        width: 18,
+
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
                   ],
                 ),
               ),
@@ -374,13 +462,16 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
             const SizedBox(height: 20),
 
-            /// TYPE TOGGLE
-            Container(
+            /// INCOME EXPENSE
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 350),
+
               padding: const EdgeInsets.all(6),
 
               decoration: BoxDecoration(
                 color: AppColors.surface,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(20),
+
                 border: Border.all(color: AppColors.border),
               ),
 
@@ -397,34 +488,63 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       },
 
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
+                        duration: const Duration(milliseconds: 400),
 
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
 
                         decoration: BoxDecoration(
                           color: selectedType == 'income'
-                              ? AppColors.income
+                              ? Colors.green.withOpacity(0.15)
                               : Colors.transparent,
 
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(16),
                         ),
 
-                        child: Center(
-                          child: Text(
-                            "Income",
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 300),
 
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
+                          opacity: selectedType == 'income' ? 1 : 0.7,
 
-                              color: selectedType == 'income'
-                                  ? Colors.black
-                                  : AppColors.textSecondary,
+                          child: AnimatedSlide(
+                            duration: const Duration(milliseconds: 300),
+
+                            offset: selectedType == 'income'
+                                ? Offset.zero
+                                : const Offset(-0.1, 0),
+
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+
+                              children: [
+                                Icon(
+                                  Icons.arrow_downward_rounded,
+                                  color: selectedType == 'income'
+                                      ? Colors.green
+                                      : AppColors.textSecondary,
+                                ),
+
+                                const SizedBox(width: 8),
+
+                                Text(
+                                  "Income",
+
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+
+                                    color: selectedType == 'income'
+                                        ? Colors.green
+                                        : AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
+
+                  const SizedBox(width: 8),
 
                   Expanded(
                     child: GestureDetector(
@@ -437,28 +557,55 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       },
 
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
+                        duration: const Duration(milliseconds: 400),
 
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
 
                         decoration: BoxDecoration(
                           color: selectedType == 'expense'
-                              ? AppColors.expense
+                              ? Colors.red.withOpacity(0.15)
                               : Colors.transparent,
 
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(16),
                         ),
 
-                        child: Center(
-                          child: Text(
-                            "Expense",
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 300),
 
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
+                          opacity: selectedType == 'expense' ? 1 : 0.7,
 
-                              color: selectedType == 'expense'
-                                  ? Colors.black
-                                  : AppColors.textSecondary,
+                          child: AnimatedSlide(
+                            duration: const Duration(milliseconds: 300),
+
+                            offset: selectedType == 'expense'
+                                ? Offset.zero
+                                : const Offset(0.1, 0),
+
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+
+                              children: [
+                                Icon(
+                                  Icons.arrow_upward_rounded,
+                                  color: selectedType == 'expense'
+                                      ? Colors.red
+                                      : AppColors.textSecondary,
+                                ),
+
+                                const SizedBox(width: 8),
+
+                                Text(
+                                  "Expense",
+
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+
+                                    color: selectedType == 'expense'
+                                        ? Colors.red
+                                        : AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -472,64 +619,140 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             const SizedBox(height: 20),
 
             /// CATEGORY
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
+            /// CATEGORY
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 500),
 
-              children: filteredCategories.map((cat) {
-                final isSelected = selectedCategory == cat;
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
 
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      selectedCategory = cat;
-                    });
-                  },
-
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? cat.color.withOpacity(0.2)
-                          : AppColors.surface,
-
-                      borderRadius: BorderRadius.circular(20),
-
-                      border: Border.all(
-                        color: isSelected ? cat.color : AppColors.border,
-                      ),
-                    ),
-
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-
-                      children: [
-                        Icon(cat.icon, size: 18, color: cat.color),
-
-                        const SizedBox(width: 6),
-
-                        Text(
-                          cat.name,
-
-                          style: TextStyle(
-                            color: isSelected
-                                ? cat.color
-                                : AppColors.textPrimary,
-
-                            fontWeight: FontWeight.w500,
+                  child: SlideTransition(
+                    position:
+                        Tween<Offset>(
+                          begin: const Offset(0, 0.15),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOut,
                           ),
                         ),
-                      ],
-                    ),
+
+                    child: child,
                   ),
                 );
-              }).toList(),
+              },
+
+              child:
+                  /// CATEGORY
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: filteredCategories.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final cat = entry.value;
+
+                      final isSelected = selectedCategory == cat;
+
+                      return TweenAnimationBuilder<double>(
+                        duration: Duration(milliseconds: 300 + (index * 60)),
+                        tween: Tween(begin: 0, end: 1),
+
+                        builder: (context, value, child) {
+                          return Transform.scale(
+                            scale: 0.9 + (value * 0.1),
+
+                            child: Opacity(
+                              opacity: value.clamp(0.0, 1.0),
+
+                              child: Transform.translate(
+                                offset: Offset(0, (1 - value) * 20),
+
+                                child: child,
+                              ),
+                            ),
+                          );
+                        },
+
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              selectedCategory = cat;
+                            });
+                          },
+
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? cat.color.withOpacity(0.18)
+                                  : AppColors.surface,
+
+                              borderRadius: BorderRadius.circular(22),
+
+                              border: Border.all(
+                                color: isSelected
+                                    ? cat.color
+                                    : AppColors.border,
+                                width: isSelected ? 2 : 1,
+                              ),
+
+                              boxShadow: [
+                                if (isSelected)
+                                  BoxShadow(
+                                    color: cat.color.withOpacity(0.25),
+                                    blurRadius: 12,
+                                    spreadRadius: 1,
+                                    offset: const Offset(0, 4),
+                                  ),
+                              ],
+                            ),
+
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+
+                              children: [
+                                AnimatedScale(
+                                  duration: const Duration(milliseconds: 250),
+                                  scale: isSelected ? 1.15 : 1,
+
+                                  child: Icon(
+                                    cat.icon,
+                                    size: 20,
+                                    color: cat.color,
+                                  ),
+                                ),
+
+                                const SizedBox(width: 8),
+
+                                AnimatedDefaultTextStyle(
+                                  duration: const Duration(milliseconds: 250),
+
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? cat.color
+                                        : AppColors.textPrimary,
+
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: isSelected ? 15 : 14,
+                                  ),
+
+                                  child: Text(cat.name),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
             ),
 
             const SizedBox(height: 20),
@@ -548,7 +771,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
                 decoration: BoxDecoration(
                   color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
 
                   border: Border.all(color: AppColors.border),
                 ),
@@ -559,54 +782,152 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   children: [
                     Row(
                       children: [
-                        const Icon(
-                          Icons.calendar_month_outlined,
-                          color: AppColors.textSecondary,
-                        ),
+                        const Icon(Icons.calendar_month_outlined),
 
                         const SizedBox(width: 10),
 
-                        Text(
-                          DateFormat.yMMMd().format(selectedDate),
-
-                          style: const TextStyle(color: AppColors.textPrimary),
-                        ),
+                        Text(DateFormat.yMMMd().format(selectedDate)),
                       ],
                     ),
 
-                    const Text(
-                      "Change",
-                      style: TextStyle(color: AppColors.textPrimary),
-                    ),
+                    const Text("Change"),
                   ],
                 ),
               ),
             ),
 
+            const SizedBox(height: 20),
+
+            /// RECEIPT PICKER
+            Container(
+              padding: const EdgeInsets.all(14),
+
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(14),
+
+                border: Border.all(color: AppColors.border),
+              ),
+
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.receipt_long),
+
+                      const SizedBox(width: 10),
+
+                      Expanded(
+                        child: Text(
+                          uploadedReceiptUrl != null
+                              ? "Receipt Attached"
+                              : "Add Receipt / Bill",
+
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: pickImageFromGallery,
+
+                          icon: const Icon(Icons.image),
+
+                          label: const Text("Image"),
+                        ),
+                      ),
+
+                      const SizedBox(width: 10),
+
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: pickDocumentFile,
+
+                          icon: const Icon(Icons.attach_file),
+
+                          label: const Text("File"),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  if (isUploadingReceipt)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 16),
+                      child: LinearProgressIndicator(),
+                    ),
+
+                  if (uploadedReceiptUrl != null) ...[
+                    const SizedBox(height: 18),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        uploadedReceiptUrl!,
+                        height: 200,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            height: 200,
+                            color: AppColors.surface,
+                            child: const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          height: 200,
+                          color: AppColors.surface,
+                          child: const Center(
+                            child: Text('Failed to load image'),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      "✓ Receipt uploaded",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.green,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
             const SizedBox(height: 30),
 
-            /// SAVE BUTTON
+            /// SAVE
             SizedBox(
               width: double.infinity,
 
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: selectedType == 'income'
-                      ? AppColors.income
-                      : AppColors.expense,
+                      ? Colors.green
+                      : Colors.red,
 
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 15),
                 ),
 
                 onPressed: saveExpense,
 
                 child: Text(
-                  isEdit ? "Update" : "Add Transaction",
+                  isEdit ? "Update Transaction" : "Add Transaction",
 
                   style: const TextStyle(
+                    color: Colors.white,
                     fontSize: 16,
-                    color: AppColors.background,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),

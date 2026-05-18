@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:finance_app/data/models/categories.dart';
 import 'package:finance_app/data/repositories/firestore_user.dart';
 import 'package:finance_app/features/expenses/models/expense.dart';
-import 'package:finance_app/features/expenses/screens/add_expense_screen.dart';
+import 'package:finance_app/features/expenses/screens/expense_detail_page.dart';
 import 'package:finance_app/features/expenses/widgets/expence_chart.dart';
 import 'package:finance_app/features/expenses/widgets/expense_title.dart';
 import 'package:finance_app/features/goal/widget/priorityGoal.dart';
@@ -327,21 +327,11 @@ class _ExpenseTabState extends State<ExpenseTab>
                     }
                   },
                   onEdit: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => AddExpenseScreen(
-                          id: e.id,
-                          title: e.title,
-                          amount: e.amount,
-                          date: e.date,
-                          type: e.type == TransactionType.income
-                              ? "income"
-                              : "expense",
-                          category: e.category,
-                        ),
-                      ),
-                    );
+                    if (e.receiptUrl != null && e.receiptUrl!.isNotEmpty) {
+                      _showImagePreview(context, e);
+                    } else {
+                      _navigateToDetail(context, e);
+                    }
                   },
                 ),
                 Divider(color: AppColors.border),
@@ -357,6 +347,71 @@ class _ExpenseTabState extends State<ExpenseTab>
     return Container(
       color: AppColors.background,
       child: Center(child: child),
+    );
+  }
+
+  void _navigateToDetail(BuildContext context, Expense e) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ExpenseDetailPage(
+          id: e.id,
+          title: e.title,
+          amount: e.amount,
+          date: e.date,
+          type: e.type == TransactionType.income ? "income" : "expense",
+          category: e.category,
+          source: e.source,
+          receiptUrl: e.receiptUrl,
+        ),
+      ),
+    );
+  }
+
+  void _showImagePreview(BuildContext context, Expense e) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Receipt Image'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(
+                e.receiptUrl!,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    height: 250,
+                    color: AppColors.surface,
+                    child: const Center(child: CircularProgressIndicator()),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) => Container(
+                  height: 250,
+                  color: AppColors.surface,
+                  child: const Center(child: Icon(Icons.image_not_supported)),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _navigateToDetail(context, e);
+            },
+            child: const Text('View Details'),
+          ),
+        ],
+      ),
     );
   }
 }
