@@ -64,6 +64,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   File? selectedReceiptFile;
 
   String? uploadedReceiptUrl;
+  String? uploadedReceiptPublicId;
 
   bool isUploadingReceipt = false;
 
@@ -82,6 +83,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     selectedType = widget.type ?? 'expense';
 
     uploadedReceiptUrl = widget.receiptUrl;
+    uploadedReceiptPublicId = widget.receiptUrl != null
+        ? CloudinaryService.extractPublicIdFromUrl(widget.receiptUrl!)
+        : null;
 
     if (widget.category != null) {
       final t = selectedType == 'income'
@@ -220,11 +224,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
   }
 
-  /// IMAGE PICKER
-  Future<void> pickImageFromGallery() async {
+  Future<void> pickImage(ImageSource source) async {
     try {
       final picked = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
+        source: source,
         imageQuality: 70,
       );
 
@@ -240,7 +243,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
   }
 
-  /// FILE PICKER
+  Future<void> pickImageFromGallery() async {
+    await pickImage(ImageSource.gallery);
+  }
+
+  Future<void> pickImageFromCamera() async {
+    await pickImage(ImageSource.camera);
+  }
+
   Future<void> pickDocumentFile() async {
     try {
       final result = await FilePicker.pickFiles();
@@ -261,7 +271,25 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
   }
 
-  /// CLOUDINARY UPLOAD
+  Future<void> removeReceipt() async {
+    if (uploadedReceiptPublicId != null) {
+      await CloudinaryService.deleteImage(uploadedReceiptPublicId!);
+    } else if (uploadedReceiptUrl != null) {
+      final publicId = CloudinaryService.extractPublicIdFromUrl(
+        uploadedReceiptUrl!,
+      );
+      if (publicId != null) {
+        await CloudinaryService.deleteImage(publicId);
+      }
+    }
+
+    setState(() {
+      selectedReceiptFile = null;
+      uploadedReceiptUrl = null;
+      uploadedReceiptPublicId = null;
+    });
+  }
+
   Future<void> uploadReceipt() async {
     if (selectedReceiptFile == null) return;
 
@@ -270,10 +298,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         isUploadingReceipt = true;
       });
 
-      final url = await CloudinaryService.uploadImage(selectedReceiptFile!);
+      final result = await CloudinaryService.uploadImage(selectedReceiptFile!);
 
-      if (url != null) {
-        uploadedReceiptUrl = url;
+      if (result != null) {
+        uploadedReceiptUrl = result.url;
+        uploadedReceiptPublicId = result.publicId;
 
         ScaffoldMessenger.of(
           context,
@@ -333,8 +362,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       'location': '${selectedLocation.latitude},${selectedLocation.longitude}',
 
       'locationAddress': selectedLocationAddress,
-
       'receiptUrl': uploadedReceiptUrl,
+      'receiptPublicId': uploadedReceiptPublicId,
     };
 
     final userRef = UserFirestore(uid).userDoc;
@@ -836,21 +865,29 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: pickImageFromGallery,
-
                           icon: const Icon(Icons.image),
-
-                          label: const Text("Image"),
+                          label: const Text("Gallery"),
                         ),
                       ),
-
                       const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: pickImageFromCamera,
+                          icon: const Icon(Icons.camera_alt),
+                          label: const Text("Camera"),
+                        ),
+                      ),
+                    ],
+                  ),
 
+                  const SizedBox(height: 10),
+
+                  Row(
+                    children: [
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: pickDocumentFile,
-
                           icon: const Icon(Icons.attach_file),
-
                           label: const Text("File"),
                         ),
                       ),
@@ -889,6 +926,28 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                           ),
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton.icon(
+                            onPressed: () async {
+                              await pickImageFromGallery();
+                            },
+                            icon: const Icon(Icons.edit),
+                            label: const Text("Change"),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextButton.icon(
+                            onPressed: removeReceipt,
+                            icon: const Icon(Icons.delete),
+                            label: const Text("Remove"),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 8),
                     const Text(

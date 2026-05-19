@@ -11,6 +11,7 @@ class Expense {
   final String source; // 🔥 NEW (expense / subscription / split)
   final String location; // 📍 NEW (location where expense occurred)
   final String? receiptUrl; // 📸 Receipt/image URL
+  final String? receiptPublicId; // 📸 Cloudinary public_id
 
   Expense({
     required this.id,
@@ -23,6 +24,7 @@ class Expense {
     required this.source,
     this.location = 'Not specified',
     this.receiptUrl,
+    this.receiptPublicId,
   });
 
   factory Expense.fromMap(String id, Map<String, dynamic> data) {
@@ -39,6 +41,7 @@ class Expense {
       source: "expense", // ✅ default
       location: data['location'] ?? data['locationAddress'] ?? 'Not specified',
       receiptUrl: data['receiptUrl'],
+      receiptPublicId: data['receiptPublicId'],
     );
   }
 
@@ -51,6 +54,8 @@ class Expense {
       'type': type == TransactionType.income ? 'income' : 'expense',
       'category': category,
       'location': location,
+      'receiptUrl': receiptUrl,
+      'receiptPublicId': receiptPublicId,
     };
   }
 }

@@ -1,11 +1,16 @@
 // ignore_for_file: unused_local_variable
 
+import 'dart:io';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:finance_app/data/repositories/firestore_user.dart';
 import 'package:finance_app/features/split/split_self_person.dart';
+import 'package:finance_app/services/cloudinary_service.dart';
 import 'package:finance_app/theme/theme.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
 
 class AddSplitScreen extends StatefulWidget {
   const AddSplitScreen({super.key});
@@ -36,6 +41,12 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
 
   Set<String> paidBy = {};
   bool isEqualSplit = true;
+
+  /// RECEIPT
+  File? selectedReceiptFile;
+  String? uploadedReceiptUrl;
+  String? uploadedReceiptPublicId;
+  bool isUploadingReceipt = false;
 
   /// 💾 SAVE SPLIT
   void saveSplit() async {
@@ -143,10 +154,107 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
       "paidBy": paidBy.toList(),
       "people": peopleData,
       "owe": oweList,
+      "receiptUrl": uploadedReceiptUrl,
+      "receiptPublicId": uploadedReceiptPublicId,
       "createdAt": Timestamp.now(),
     });
 
     Navigator.pop(context);
+  }
+
+  Future<void> pickImage(ImageSource source) async {
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 70,
+      );
+
+      if (picked == null) return;
+
+      setState(() {
+        selectedReceiptFile = File(picked.path);
+      });
+
+      await uploadReceipt();
+    } catch (e) {
+      print(e);
+    }
+  }
+
+  Future<void> pickImageFromGallery() async {
+    await pickImage(ImageSource.gallery);
+  }
+
+  Future<void> pickImageFromCamera() async {
+    await pickImage(ImageSource.camera);
+  }
+
+  Future<void> pickDocumentFile() async {
+    try {
+      final result = await FilePicker.pickFiles();
+
+      if (result == null) return;
+
+      final path = result.files.single.path;
+
+      if (path == null) return;
+
+      setState(() {
+        selectedReceiptFile = File(path);
+      });
+
+      await uploadReceipt();
+    } catch (e) {
+      print(e);
+    }
+  }
+
+  Future<void> removeReceipt() async {
+    if (uploadedReceiptPublicId != null) {
+      await CloudinaryService.deleteImage(uploadedReceiptPublicId!);
+    } else if (uploadedReceiptUrl != null) {
+      final publicId = CloudinaryService.extractPublicIdFromUrl(
+        uploadedReceiptUrl!,
+      );
+      if (publicId != null) {
+        await CloudinaryService.deleteImage(publicId);
+      }
+    }
+
+    setState(() {
+      selectedReceiptFile = null;
+      uploadedReceiptUrl = null;
+      uploadedReceiptPublicId = null;
+    });
+  }
+
+  Future<void> uploadReceipt() async {
+    if (selectedReceiptFile == null) return;
+
+    try {
+      setState(() {
+        isUploadingReceipt = true;
+      });
+
+      final result = await CloudinaryService.uploadImage(selectedReceiptFile!);
+
+      if (result != null) {
+        setState(() {
+          uploadedReceiptUrl = result.url;
+          uploadedReceiptPublicId = result.publicId;
+        });
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Receipt uploaded")));
+      }
+    } catch (e) {
+      print(e);
+    } finally {
+      setState(() {
+        isUploadingReceipt = false;
+      });
+    }
   }
 
   @override
@@ -204,6 +312,143 @@ class _AddSplitScreenState extends State<AddSplitScreen> {
                         border: OutlineInputBorder(),
                       ),
                     ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 22),
+
+            /// 🔹 RECEIPT PICKER
+            Card(
+              elevation: 1,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Receipt",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        const Icon(Icons.receipt_long),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            uploadedReceiptUrl != null
+                                ? "Receipt Attached"
+                                : "Add receipt image or file",
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: pickImageFromGallery,
+                            icon: const Icon(Icons.image),
+                            label: const Text("Gallery"),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: pickImageFromCamera,
+                            icon: const Icon(Icons.camera_alt),
+                            label: const Text("Camera"),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: pickDocumentFile,
+                            icon: const Icon(Icons.attach_file),
+                            label: const Text("File"),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (isUploadingReceipt)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 16),
+                        child: LinearProgressIndicator(),
+                      ),
+                    if (uploadedReceiptUrl != null) ...[
+                      const SizedBox(height: 18),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          uploadedReceiptUrl!,
+                          height: 200,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              height: 200,
+                              color: AppColors.surface,
+                              child: const Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(
+                                height: 200,
+                                color: AppColors.surface,
+                                child: const Center(
+                                  child: Text('Failed to load image'),
+                                ),
+                              ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton.icon(
+                              onPressed: () async {
+                                await pickImageFromGallery();
+                              },
+                              icon: const Icon(Icons.edit),
+                              label: const Text("Change"),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextButton.icon(
+                              onPressed: removeReceipt,
+                              icon: const Icon(Icons.delete),
+                              label: const Text("Remove"),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        "✓ Receipt uploaded",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

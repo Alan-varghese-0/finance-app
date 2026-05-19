@@ -132,6 +132,8 @@ class _SplitTabState extends State<SplitTab>
       final owes = (data['owe'] ?? []) as List;
 
       for (var o in owes) {
+        if (o['isSettled'] == true) continue;
+
         final from = o['from'];
         final to = o['to'];
         final amount = (o['amount'] ?? 0).toDouble();
@@ -196,6 +198,8 @@ class _SplitTabState extends State<SplitTab>
 
     if (owes.isNotEmpty) {
       for (var e in owes) {
+        if (e['isSettled'] == true) continue;
+
         final from = e['from'];
         final to = e['to'];
         final amount = e['amount'] ?? 0;
@@ -224,7 +228,9 @@ class _SplitTabState extends State<SplitTab>
           ),
         );
       }
-    } else {
+    }
+
+    if (oweWidgets.isEmpty) {
       oweWidgets.add(
         const Text(
           "No breakdown",
